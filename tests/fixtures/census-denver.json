@@ -1,0 +1,189 @@
+{
+ "result": {
+  "input": {
+   "address": {
+    "address": "200 E Colfax Ave, Denver, CO 80203"
+   },
+   "vintage": {
+    "isDefault": true,
+    "id": "4",
+    "vintageName": "Current_Current",
+    "vintageDescription": "Current Vintage - Current Benchmark"
+   },
+   "benchmark": {
+    "isDefault": true,
+    "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+    "id": "4",
+    "benchmarkName": "Public_AR_Current"
+   }
+  },
+  "addressMatches": [
+   {
+    "tigerLine": {
+     "side": "R",
+     "tigerLineId": "177305728"
+    },
+    "geographies": {
+     "Incorporated Places": [
+      {
+       "DISP_CLR": 1,
+       "STGEOMETRY_Area": 679002659.9438984,
+       "NECTAPCI": "N",
+       "GEOID": "0820000",
+       "CENTLAT": "+39.7619818",
+       "AREAWATER": 4275565,
+       "BASENAME": "Denver",
+       "STATE": "08",
+       "OID": "27890700461499",
+       "LSADC": "25",
+       "PLACE": "20000",
+       "FUNCSTAT": "A",
+       "INTPTLAT": "+39.7618502",
+       "NAME": "Denver city",
+       "OBJECTID": 32042,
+       "PLACECC": "C1",
+       "CENTLON": "-104.8760036",
+       "STGEOMETRY_Length": 339358.05820468185,
+       "CBSAPCI": "Y",
+       "AREALAND": 396460168,
+       "INTPTLON": "-104.8811054",
+       "PLACENS": "02410324",
+       "MTFCC": "G4110"
+      }
+     ],
+     "Counties": [
+      {
+       "GEOID": "08031",
+       "CENTLAT": "+39.7619818",
+       "AREAWATER": 4275565,
+       "STATE": "08",
+       "BASENAME": "Denver",
+       "OID": "27590700234321",
+       "LSADC": "06",
+       "FUNCSTAT": "C",
+       "INTPTLAT": "+39.7618502",
+       "NAME": "Denver County",
+       "OBJECTID": 1640,
+       "CENTLON": "-104.8760036",
+       "COUNTYCC": "H6",
+       "COUNTYNS": "00198131",
+       "AREALAND": 396460168,
+       "INTPTLON": "-104.8811054",
+       "MTFCC": "G4020",
+       "COUNTY": "031"
+      }
+     ],
+     "States": [
+      {
+       "STATENS": "01779779",
+       "GEOID": "08",
+       "CENTLAT": "+38.9976180",
+       "AREAWATER": 1185174048,
+       "STATE": "08",
+       "BASENAME": "Colorado",
+       "STUSAB": "CO",
+       "OID": "2749086215995",
+       "LSADC": "00",
+       "FUNCSTAT": "A",
+       "INTPTLAT": "+38.9937536",
+       "DIVISION": "8",
+       "NAME": "Colorado",
+       "REGION": "4",
+       "OBJECTID": 18,
+       "CENTLON": "-105.5478280",
+       "AREALAND": 268419335627,
+       "INTPTLON": "-105.5087407",
+       "MTFCC": "G4000"
+      }
+     ],
+     "2026 State Legislative Districts - Upper": [
+      {
+       "GEOID": "08031",
+       "CENTLAT": "+39.7222919",
+       "AREAWATER": 54418,
+       "STATE": "08",
+       "BASENAME": "31",
+       "OID": "2129042579651588",
+       "SLDU": "031",
+       "LSADC": "LU",
+       "FUNCSTAT": "N",
+       "INTPTLAT": "+39.7217509",
+       "NAME": "State Senate District 31",
+       "OBJECTID": 684,
+       "CENTLON": "-104.9427879",
+       "LSY": "2026",
+       "AREALAND": 47961728,
+       "INTPTLON": "-104.9431499",
+       "MTFCC": "G5210",
+       "LDTYP": "O"
+      }
+     ],
+     "120th Congressional Districts": [
+      {
+       "STGEOMETRY_Area": 682632207.1785982,
+       "CD120": "01",
+       "GEOID": "0801",
+       "CENTLAT": "+39.7615772",
+       "CDSESSN": "120",
+       "AREAWATER": 4281289,
+       "STATE": "08",
+       "BASENAME": "1",
+       "OID": "2119042393277351",
+       "LSADC": "C2",
+       "FUNCSTAT": "N",
+       "INTPTLAT": "+39.7618502",
+       "NAME": "Congressional District 1",
+       "OBJECTID": 163,
+       "CENTLON": "-104.8763474",
+       "STGEOMETRY_Length": 309896.88207901875,
+       "AREALAND": 398601233,
+       "INTPTLON": "-104.8811054",
+       "MTFCC": "G5200"
+      }
+     ],
+     "2026 State Legislative Districts - Lower": [
+      {
+       "GEOID": "08006",
+       "CENTLAT": "+39.7246870",
+       "SLDL": "006",
+       "AREAWATER": 1067,
+       "STATE": "08",
+       "BASENAME": "6",
+       "OID": "2139042579651613",
+       "LSADC": "LL",
+       "FUNCSTAT": "N",
+       "INTPTLAT": "+39.7344207",
+       "NAME": "State House District 6",
+       "OBJECTID": 2142,
+       "CENTLON": "-104.9168863",
+       "LSY": "2026",
+       "AREALAND": 23365163,
+       "INTPTLON": "-104.9568674",
+       "MTFCC": "G5220",
+       "LDTYP": "O"
+      }
+     ]
+    },
+    "coordinates": {
+     "x": -104.984403184626,
+     "y": 39.739996725077
+    },
+    "addressComponents": {
+     "zip": "80203",
+     "streetName": "COLFAX",
+     "preType": "",
+     "city": "DENVER",
+     "preDirection": "E",
+     "suffixDirection": "",
+     "fromAddress": "150",
+     "state": "CO",
+     "suffixType": "AVE",
+     "toAddress": "298",
+     "suffixQualifier": "",
+     "preQualifier": ""
+    },
+    "matchedAddress": "200 E COLFAX AVE, DENVER, CO, 80203"
+   }
+  ]
+ }
+}

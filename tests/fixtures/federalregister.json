@@ -1,0 +1,88 @@
+{
+ "description": "Documents with a comment closing date on or after 11/20/2026 and from National Park Service",
+ "count": 6,
+ "total_pages": 2,
+ "results": [
+  {
+   "title": "National Register of Historic Places; Notification of Pending Nominations and Related Actions",
+   "abstract": "The National Park Service is soliciting electronic comments on the significance of properties nominated before October 31, 2026, for listing or related actions in the National Register of Historic Places.",
+   "agencies": [
+    {
+     "raw_name": "DEPARTMENT OF THE INTERIOR",
+     "name": "Interior Department",
+     "id": 253,
+     "url": "https://www.federalregister.gov/agencies/interior-department",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/253",
+     "parent_id": null,
+     "slug": "interior-department"
+    },
+    {
+     "raw_name": "National Park Service",
+     "name": "National Park Service",
+     "id": 362,
+     "url": "https://www.federalregister.gov/agencies/national-park-service",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/362",
+     "parent_id": 253,
+     "slug": "national-park-service"
+    }
+   ],
+   "comments_close_on": "2026-12-02",
+   "document_number": "2026-23373",
+   "html_url": "https://www.federalregister.gov/documents/2026/11/17/2026-23373/national-register-of-historic-places-notification-of-pending-nominations-and-related-actions",
+   "regulations_dot_gov_info": {
+    "checked_regulationsdotgov_at": "2026-11-17T07:20:31Z"
+   },
+   "type": "Notice",
+   "publication_date": "2026-11-17",
+   "docket_ids": [
+    "NPS-WASO-NRNHL-DTS#-44188",
+    "PPWOCRADI0, PCU00RP14.R50000"
+   ]
+  },
+  {
+   "title": "Castle Mountains National Monument and Craters of the Moon National Monument; Hunting",
+   "abstract": "The National Park Service (NPS) proposes to promulgate special regulations to allow hunting in Castle Mountains National Monument and Craters of the Moon National Monument. The regulations would recognize the authority of the States to manage wildlife while also allowing for appropriate management of hunting by the NPS to protect public health and safety, objects of historic and scientific interest that the Monuments were established to protect, and endangered or threatened species. Allowing hunting in these National Monuments is directed by Executive Order 14429, \"Reinvigorating America's Hunting Heritage,\" and advances the policy of the Trump Administration to reinvigorate, protect, and expand America's hunting heritage to benefit our people and our land.",
+   "agencies": [
+    {
+     "raw_name": "DEPARTMENT OF THE INTERIOR",
+     "name": "Interior Department",
+     "id": 253,
+     "url": "https://www.federalregister.gov/agencies/interior-department",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/253",
+     "parent_id": null,
+     "slug": "interior-department"
+    },
+    {
+     "raw_name": "National Park Service",
+     "name": "National Park Service",
+     "id": 362,
+     "url": "https://www.federalregister.gov/agencies/national-park-service",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/362",
+     "parent_id": 253,
+     "slug": "national-park-service"
+    }
+   ],
+   "comments_close_on": "2026-12-16",
+   "document_number": "2026-23228",
+   "html_url": "https://www.federalregister.gov/documents/2026/11/16/2026-23228/castle-mountains-national-monument-and-craters-of-the-moon-national-monument-hunting",
+   "regulations_dot_gov_info": {
+    "supporting_documents": [],
+    "comments_count": 25,
+    "agency_id": "NPS",
+    "comments_url": "https://www.regulations.gov/docketBrowser?rpp=50&so=DESC&sb=postedDate&po=0&dct=PS&D=NPS-2026-0265",
+    "supporting_documents_count": 0,
+    "docket_id": "NPS-2026-0265",
+    "document_id": "NPS-2026-0265-0001",
+    "regulation_id_number": "1024-AF13",
+    "title": "Castle Mountains National Monument and Craters of the Moon National Monument; Hunting",
+    "checked_regulationsdotgov_at": "2026-11-20T22:55:05Z"
+   },
+   "type": "Proposed Rule",
+   "publication_date": "2026-11-16",
+   "docket_ids": [
+    "NPS-CAMO-CRMO-NPS0043954",
+    "277P103601, PPWOVPADU0"
+   ]
+  }
+ ]
+}
