@@ -15,6 +15,7 @@
     "db:types": "npx supabase gen types typescript --local > lib/supabase/database.types.ts",
     "ingest": "tsx --env-file-if-exists=.env.local ingest/run.ts",
     "gen:seed": "tsx scripts/gen-seed.ts",
+    "gen:zcta": "tsx scripts/gen-zcta.ts",
     "notify": "tsx --env-file-if-exists=.env.local ingest/notify.ts"
   },
   "dependencies": {

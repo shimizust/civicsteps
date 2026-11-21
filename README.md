@@ -2,7 +2,7 @@
 
 Know what's being decided that affects you, from city hall to Congress, and make your voice heard.
 
-Users enter their address, a few optional facts about themselves, the topics they follow and their **pet issues** (for example "climbing access in national parks"). CivicSteps then:
+Users enter their ZIP code, a few optional facts about themselves, the topics they follow and their **pet issues** (for example "climbing access in national parks"). CivicSteps then:
 
 - builds a feed of bills, city council agenda items and federal public comment periods that affect them, ranked by relevance and deadline
 - lists their city, state and federal representatives, with contact info and recent sponsorships
@@ -29,7 +29,7 @@ Without `ANTHROPIC_API_KEY` everything still works: items are tagged with keywor
 
 | Need | Source | Key |
 |---|---|---|
-| Address → districts | [US Census Geocoder](https://geocoding.geo.census.gov/) | none |
+| ZIP → districts | [Census ZCTA Gazetteer](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html) (bundled, `npm run gen:zcta`) + [US Census Geocoder](https://geocoding.geo.census.gov/) | none |
 | Federal legislators | [unitedstates/congress-legislators](https://github.com/unitedstates/congress-legislators) | none |
 | Federal bills | [Congress.gov API](https://api.congress.gov/) | [api.data.gov](https://api.data.gov/signup/) |
 | Federal comment periods | [Federal Register API](https://www.federalregister.gov/developers) | none |
@@ -86,6 +86,7 @@ supabase/         schema, RLS policies, generated seed
 
 ## Privacy
 
-- The street address is stored for the user only (row-level security) and is never sent to an AI. Drafts include only city and state.
+- We only ask for a ZIP code, never a street address. It is stored for the user only (row-level security) and is never sent to an AI. Districts are looked up from a point inside the ZIP, so the ZIP itself never leaves the server. Drafts include only city and state.
+- A ZIP can cross district lines; we use the Census interior point of the ZIP, so users near a boundary may be matched to a neighboring district.
 - Profile questions are optional broad ranges.
 - Points and badges are written server-side only.

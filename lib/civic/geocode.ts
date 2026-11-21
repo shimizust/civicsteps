@@ -1,10 +1,15 @@
 /**
- * Address → coordinates + every political division the address is in, via the free
+ * ZIP → a point inside it → every political division that point is in, via the free
  * US Census Geocoder (no API key). Districts are expressed as OCD-style division ids.
+ *
+ * We only ask for a ZIP, so we look up the Census interior point of its ZIP Code
+ * Tabulation Area (bundled in zcta.data.ts) and resolve districts there. A ZIP can cross
+ * district or city lines; the point picks one side.
  */
+import { ZCTA_POINTS } from "./zcta.data";
 
 export type Districts = {
-  matchedAddress: string;
+  zip: string;
   lat: number;
   lng: number;
   state: string; // "CO"
@@ -30,14 +35,29 @@ function first(geos: Record<string, Geo[]>, pattern: RegExp): Geo | null {
 /** Strip leading zeros from district names like "006" but keep names like "4A" or "Chittenden-1". */
 const districtName = (g: Geo | null) => (g ? g.BASENAME.replace(/^0+(?=\w)/, "") : null);
 
+let points: Map<string, [number, number]> | null = null;
+
+/** Interior point of a 5-digit ZIP's tabulation area, or null if the Census has none (e.g. PO-box-only ZIPs). */
+export function zipPoint(zip: string): { lat: number; lng: number } | null {
+  if (!points) {
+    points = new Map();
+    for (const line of ZCTA_POINTS.split("\n")) {
+      const [z, lat, lng] = line.split(" ");
+      points.set(z, [Number(lat), Number(lng)]);
+    }
+  }
+  const p = points.get(zip);
+  return p ? { lat: p[0], lng: p[1] } : null;
+}
+
+/** Parses a Census geographies/coordinates response for the point we sent. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function parseCensusResponse(json: any): Districts | null {
-  const match = json?.result?.addressMatches?.[0];
-  if (!match) return null;
-  const geos: Record<string, Geo[]> = match.geographies ?? {};
+export function parseCensusResponse(json: any, at: { zip: string; lat: number; lng: number }): Districts | null {
+  const geos: Record<string, Geo[]> | undefined = json?.result?.geographies;
+  if (!geos) return null;
 
   const stateGeo = first(geos, /^States$/);
-  const state = stateGeo?.STUSAB ?? match.addressComponents?.state;
+  const state = stateGeo?.STUSAB;
   if (!state) return null;
   const st = state.toLowerCase();
 
@@ -59,9 +79,9 @@ export function parseCensusResponse(json: any): Districts | null {
   if (place) ids.push(`${base}/place:${ocdSlug(place)}`);
 
   return {
-    matchedAddress: match.matchedAddress,
-    lat: match.coordinates.y,
-    lng: match.coordinates.x,
+    zip: at.zip,
+    lat: at.lat,
+    lng: at.lng,
     state,
     cd,
     sldu,
@@ -72,10 +92,14 @@ export function parseCensusResponse(json: any): Districts | null {
   };
 }
 
-export async function geocodeAddress(address: string): Promise<Districts | null> {
-  const url = new URL("https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress");
+/** Returns null when the ZIP isn't a known residential ZIP. Throws if the Census service is down. */
+export async function geocodeZip(zip: string): Promise<Districts | null> {
+  const pt = zipPoint(zip);
+  if (!pt) return null;
+  const url = new URL("https://geocoding.geo.census.gov/geocoder/geographies/coordinates");
   url.search = new URLSearchParams({
-    address,
+    x: String(pt.lng),
+    y: String(pt.lat),
     benchmark: "Public_AR_Current",
     vintage: "Current_Current",
     layers: "all",
@@ -83,5 +107,5 @@ export async function geocodeAddress(address: string): Promise<Districts | null>
   }).toString();
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`Census geocoder ${res.status}`);
-  return parseCensusResponse(await res.json());
+  return parseCensusResponse(await res.json(), { zip, ...pt });
 }

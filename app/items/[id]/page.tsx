@@ -108,7 +108,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
       ) : (
         <Card className="text-sm text-muted">
           We don&apos;t have your {LEVEL_LABEL[item.level].toLowerCase()} representatives yet.{" "}
-          <Link className="text-accent underline" href="/onboarding?step=1">Check your address</Link>
+          <Link className="text-accent underline" href="/onboarding?step=1">Check your ZIP code</Link>
           {item.action_url && <> or <a className="text-accent underline" href={item.action_url} target="_blank" rel="noreferrer">see the official page</a></>}.
         </Card>
       )}

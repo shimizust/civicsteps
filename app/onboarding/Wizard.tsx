@@ -6,18 +6,18 @@ import {
   addPetIssue,
   finishOnboarding,
   removeInterest,
-  saveAddress,
+  saveZip,
   saveDemographics,
   saveTopics,
   updatePetKeywords,
-  type AddressResult,
+  type ZipResult,
   type PetIssue,
 } from "./actions";
 
 type Props = {
   initialStep: number;
   returning: boolean;
-  address: string;
+  zip: string;
   demographics: Demographics;
   topics: string[];
   pets: PetIssue[];
@@ -25,7 +25,7 @@ type Props = {
   aiEnabled: boolean;
 };
 
-const STEPS = ["Address", "About you", "Topics", "Pet issues", "Alerts"];
+const STEPS = ["ZIP code", "About you", "Topics", "Pet issues", "Alerts"];
 
 export function Wizard(p: Props) {
   const [step, setStep] = useState(p.initialStep);
@@ -50,7 +50,7 @@ export function Wizard(p: Props) {
         ))}
       </ol>
 
-      {step === 1 && <AddressStep initial={p.address} onDone={next} />}
+      {step === 1 && <ZipStep initial={p.zip} onDone={next} />}
       {step === 2 && <AboutStep initial={p.demographics} onBack={back} onDone={(d) => start(async () => { await saveDemographics(d); next(); })} pending={pending} />}
       {step === 3 && <TopicsStep initial={p.topics} onBack={back} onDone={(t) => start(async () => { await saveTopics(t); next(); })} pending={pending} />}
       {step === 4 && <PetsStep initial={p.pets} aiEnabled={p.aiEnabled} onBack={back} onDone={next} />}
@@ -77,15 +77,15 @@ function Nav({ onBack, next, pending, disabled }: { onBack?: () => void; next: R
   );
 }
 
-// ---------------------------------------------------------------- 1. address
+// ---------------------------------------------------------------- 1. zip
 
-function AddressStep({ initial, onDone }: { initial: string; onDone: () => void }) {
-  const [address, setAddress] = useState(initial);
-  const [result, setResult] = useState<AddressResult | null>(null);
+function ZipStep({ initial, onDone }: { initial: string; onDone: () => void }) {
+  const [zip, setZip] = useState(initial);
+  const [result, setResult] = useState<ZipResult | null>(null);
   const [submitted, setSubmitted] = useState(initial);
   const [pending, start] = useTransition();
-  // Returning users with a saved address, or a fresh successful lookup of what's in the box, can continue.
-  const confirmed = (result?.ok && address === submitted) || (!result && !!initial && address === initial);
+  // Returning users with a saved ZIP, or a fresh successful lookup of what's in the box, can continue.
+  const confirmed = (result?.ok && zip === submitted) || (!result && !!initial && zip === initial);
 
   return (
     <form
@@ -93,29 +93,31 @@ function AddressStep({ initial, onDone }: { initial: string; onDone: () => void 
         e.preventDefault();
         if (confirmed) return onDone();
         start(async () => {
-          setSubmitted(address);
-          setResult(await saveAddress(address));
+          setSubmitted(zip);
+          setResult(await saveZip(zip));
         });
       }}
     >
       <StepHeader
         title="Where do you live?"
-        sub="Your address tells us your city, county and legislative districts, so we can find your representatives. It's never shared or sent to an AI."
+        sub="Your ZIP code tells us your city, county and legislative districts, so we can find your representatives. It's never shared or sent to an AI."
       />
-      <label htmlFor="address" className="text-sm font-medium">Home address</label>
+      <label htmlFor="zip" className="text-sm font-medium">ZIP code</label>
       <input
-        id="address"
-        value={address}
-        onChange={(e) => { setAddress(e.target.value); setResult(null); }}
-        autoComplete="street-address"
-        placeholder="123 Main St, Boulder, CO 80302"
-        className="mt-1 w-full rounded-lg border border-line bg-card px-3 py-2"
+        id="zip"
+        value={zip}
+        onChange={(e) => { setZip(e.target.value); setResult(null); }}
+        autoComplete="postal-code"
+        inputMode="numeric"
+        maxLength={10}
+        placeholder="80302"
+        className="mt-1 w-full max-w-40 rounded-lg border border-line bg-card px-3 py-2"
       />
       {result && !result.ok && <p className="mt-2 text-sm text-urgent">{result.error}</p>}
       {result?.ok && (
         <Card className="mt-4">
           <p className="text-sm text-muted">Found</p>
-          <p className="font-medium">{result.matchedAddress}</p>
+          <p className="font-medium">ZIP {result.zip}</p>
           <ul className="mt-3 flex flex-wrap gap-2">
             {result.summary.map((s) => <Pill key={s}>{s}</Pill>)}
           </ul>
@@ -124,9 +126,12 @@ function AddressStep({ initial, onDone }: { initial: string; onDone: () => void 
             {result.stateLookup === "skipped" && " State legislators need an Open States API key on the server; we'll add them once it's set."}
             {result.stateLookup === "failed" && " We couldn't look up your state legislators right now; we'll retry later."}
           </p>
+          <p className="mt-2 text-xs text-muted">
+            Some ZIP codes cross district lines. We use the middle of yours, so a district near the edge may be off.
+          </p>
         </Card>
       )}
-      <Nav next={confirmed ? "Continue" : "Look up address"} pending={pending} disabled={!address.trim()} />
+      <Nav next={confirmed ? "Continue" : "Look up ZIP"} pending={pending} disabled={!zip.trim()} />
     </form>
   );
 }
