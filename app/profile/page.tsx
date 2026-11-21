@@ -66,7 +66,7 @@ export default async function ProfilePage() {
 
       <SectionTitle>Settings</SectionTitle>
       <Card className="space-y-2 text-sm">
-        <p>Address: {profile?.address ?? "not set"} <Link className="text-accent" href="/onboarding?step=1">Change</Link></p>
+        <p>ZIP code: {profile?.zip ?? "not set"} <Link className="text-accent" href="/onboarding?step=1">Change</Link></p>
         <p>Pet issue alerts: {profile?.notify_alerts ? "on" : "off"} · Weekly digest: {profile?.notify_digest ? "on" : "off"} <Link className="text-accent" href="/onboarding?step=5">Change</Link></p>
         <form action="/auth/signout" method="post" className="pt-2"><Button variant="secondary" type="submit">Sign out</Button></form>
       </Card>

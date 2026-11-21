@@ -14,7 +14,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     <Wizard
       initialStep={Math.min(Math.max(parseInt(step ?? "1", 10) || 1, 1), 5)}
       returning={!!profile?.onboarded_at}
-      address={profile?.address ?? ""}
+      zip={profile?.zip ?? ""}
       demographics={(profile?.demographics ?? {}) as Demographics}
       topics={interests.filter((i) => !i.is_pet).flatMap((i) => i.topic_slugs)}
       pets={interests.filter((i) => i.is_pet)}

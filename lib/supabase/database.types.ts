@@ -227,14 +227,14 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "address": string | null,"created_at": string,"demographics": NonNullable<Json>,"display_name": string | null,"jurisdiction_ids": (string)[],"lat": number | null,"lng": number | null,"notify_alerts": boolean,"notify_digest": boolean,"onboarded_at": string | null,"state": string | null,"updated_at": string,"user_id": string
+                    "created_at": string,"demographics": NonNullable<Json>,"display_name": string | null,"jurisdiction_ids": (string)[],"lat": number | null,"lng": number | null,"notify_alerts": boolean,"notify_digest": boolean,"onboarded_at": string | null,"state": string | null,"updated_at": string,"user_id": string,"zip": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "address"?: string | null,"created_at"?: string,"demographics"?: NonNullable<Json>,"display_name"?: string | null,"jurisdiction_ids"?: (string)[],"lat"?: number | null,"lng"?: number | null,"notify_alerts"?: boolean,"notify_digest"?: boolean,"onboarded_at"?: string | null,"state"?: string | null,"updated_at"?: string,"user_id": string
+                    "created_at"?: string,"demographics"?: NonNullable<Json>,"display_name"?: string | null,"jurisdiction_ids"?: (string)[],"lat"?: number | null,"lng"?: number | null,"notify_alerts"?: boolean,"notify_digest"?: boolean,"onboarded_at"?: string | null,"state"?: string | null,"updated_at"?: string,"user_id": string,"zip"?: string | null
                   }
                   Update: {
-                    "address"?: string | null,"created_at"?: string,"demographics"?: NonNullable<Json>,"display_name"?: string | null,"jurisdiction_ids"?: (string)[],"lat"?: number | null,"lng"?: number | null,"notify_alerts"?: boolean,"notify_digest"?: boolean,"onboarded_at"?: string | null,"state"?: string | null,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"demographics"?: NonNullable<Json>,"display_name"?: string | null,"jurisdiction_ids"?: (string)[],"lat"?: number | null,"lng"?: number | null,"notify_alerts"?: boolean,"notify_digest"?: boolean,"onboarded_at"?: string | null,"state"?: string | null,"updated_at"?: string,"user_id"?: string,"zip"?: string | null
                   }
                   Relationships: [
                     
