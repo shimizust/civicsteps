@@ -1,7 +1,7 @@
 /**
  * Pure prompt building for drafts — no SDK import, so it can run in the browser for the
  * "copy this prompt to your own AI" fallback. Privacy: only coarse location (city/state)
- * and official names go into the prompt, never the street address or the user's name.
+ * and official names go into the prompt, never the ZIP code or the user's name.
  */
 export type DraftKind = "email" | "call_script" | "public_comment";
 export type Stance = "support" | "oppose" | "concerned" | "question";

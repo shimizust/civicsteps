@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
-import { geocodeAddress } from "@/lib/civic/geocode";
+import { geocodeZip } from "@/lib/civic/geocode";
 import { resolveOfficials } from "@/lib/civic/resolve";
 import { mapInterest } from "@/lib/ai/mapInterest";
 import { TOPIC_SLUGS, type Demographics } from "@/lib/taxonomy";
@@ -14,28 +14,28 @@ async function me() {
   return { supabase, user };
 }
 
-export type AddressResult =
-  | { ok: true; matchedAddress: string; summary: string[]; officials: number; stateLookup: "ok" | "skipped" | "failed" }
+export type ZipResult =
+  | { ok: true; zip: string; summary: string[]; officials: number; stateLookup: "ok" | "skipped" | "failed" }
   | { ok: false; error: string };
 
-export async function saveAddress(address: string): Promise<AddressResult> {
+export async function saveZip(input: string): Promise<ZipResult> {
   const { supabase, user } = await me();
-  const clean = address.trim().slice(0, 300);
-  if (clean.length < 8) return { ok: false, error: "Enter a full street address, city and state." };
+  const zip = input.trim().match(/^(\d{5})(?:-\d{4})?$/)?.[1];
+  if (!zip) return { ok: false, error: "Enter a 5-digit ZIP code." };
 
   let d;
   try {
-    d = await geocodeAddress(clean);
+    d = await geocodeZip(zip);
   } catch {
-    return { ok: false, error: "The address lookup service isn't responding. Try again in a minute." };
+    return { ok: false, error: "The district lookup service isn't responding. Try again in a minute." };
   }
-  if (!d) return { ok: false, error: "We couldn't find that address. Include street, city, state and ZIP." };
+  if (!d) return { ok: false, error: "We don't have districts for that ZIP. If it's a PO box ZIP, try the ZIP where you live." };
 
   const { error } = await supabase.from("profiles").upsert(
-    { user_id: user.id, address: d.matchedAddress, lat: d.lat, lng: d.lng, state: d.state, jurisdiction_ids: d.jurisdictionIds },
+    { user_id: user.id, zip: d.zip, lat: d.lat, lng: d.lng, state: d.state, jurisdiction_ids: d.jurisdictionIds },
     { onConflict: "user_id" },
   );
-  if (error) return { ok: false, error: "Couldn't save your address." };
+  if (error) return { ok: false, error: "Couldn't save your ZIP code." };
 
   const { count, stateLookup } = await resolveOfficials(user.id, d);
   const summary = [
@@ -46,7 +46,7 @@ export async function saveAddress(address: string): Promise<AddressResult> {
     d.sldl && `State house district ${d.sldl}`,
   ].filter((x): x is string => !!x);
   revalidatePath("/reps");
-  return { ok: true, matchedAddress: d.matchedAddress, summary, officials: count, stateLookup };
+  return { ok: true, zip: d.zip, summary, officials: count, stateLookup };
 }
 
 const DemographicsSchema = z.object({

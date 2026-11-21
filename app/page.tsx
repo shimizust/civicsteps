@@ -10,7 +10,7 @@ export default async function Home() {
   if (user) redirect("/feed");
 
   const steps = [
-    ["Tell us where you live and what you care about", "Your address finds your districts. Add pet issues like climbing access or transit, as specific as you like."],
+    ["Tell us where you live and what you care about", "Your ZIP code finds your districts. Add pet issues like climbing access or transit, as specific as you like."],
     ["See what's being decided", "Bills, city council agendas and federal comment periods, filtered to what affects you and sorted by deadline."],
     ["Speak up in two minutes", "Get a draft email, call script or public comment in your own words, plus your reps' contact info."],
     ["Keep it up", "Earn badges for showing up, and get a heads-up before deadlines on the issues you care about."],

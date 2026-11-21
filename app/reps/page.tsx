@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
 import { getMyOfficials, getProfile } from "@/lib/data";
+import { placeName } from "@/lib/place";
 import { OfficialCard } from "@/components/OfficialCard";
 import { Empty, PageTitle, SectionTitle } from "@/components/ui";
 
@@ -15,18 +16,19 @@ export default async function RepsPage() {
   const { supabase, user } = await requireUser();
   if (!user) redirect("/login?next=/reps");
   const [officials, profile] = await Promise.all([getMyOfficials(supabase, user.id), getProfile(supabase, user.id)]);
+  const place = profile ? placeName(profile.jurisdiction_ids, profile.state) : null;
 
   return (
     <div>
-      <PageTitle sub={profile?.address ? `For ${profile.address}` : undefined}>Your representatives</PageTitle>
-      {!profile?.address && (
+      <PageTitle sub={profile?.zip ? `For ZIP ${profile.zip}${place ? ` (${place})` : ""}` : undefined}>Your representatives</PageTitle>
+      {!profile?.zip && (
         <Empty>
-          <Link className="text-accent underline" href="/onboarding?step=1">Add your address</Link> to see who represents you.
+          <Link className="text-accent underline" href="/onboarding?step=1">Add your ZIP code</Link> to see who represents you.
         </Empty>
       )}
       {GROUPS.map((g) => {
         const list = officials.filter((o) => (g.levels as readonly string[]).includes(o.level));
-        if (!profile?.address) return null;
+        if (!profile?.zip) return null;
         return (
           <section key={g.title}>
             <SectionTitle>{g.title}</SectionTitle>
@@ -38,7 +40,7 @@ export default async function RepsPage() {
                   ? "State legislators appear once the server has an Open States API key."
                   : g.levels.includes("city" as never)
                     ? "Your city's council data isn't connected yet. Cities on Legistar can be added in ingest/legistar.config.ts."
-                    : "No federal representatives found for this address."}
+                    : "No federal representatives found for this ZIP code."}
               </Empty>
             )}
           </section>
