@@ -12,6 +12,8 @@
   --color-urgent-soft: #fbeedd;
   --color-pet: #6a3fb5;
   --color-pet-soft: #efe8fb;
+  --color-benefit: #23824a;
+  --color-benefit-soft: #e2f3e8;
   --font-display: var(--font-fraunces), Georgia, serif;
   --font-sans: var(--font-inter), system-ui, sans-serif;
 }
@@ -29,6 +31,8 @@
     --color-urgent-soft: #3a2614;
     --color-pet: #b896f0;
     --color-pet-soft: #2a2139;
+    --color-benefit: #6fd39a;
+    --color-benefit-soft: #16301f;
   }
 }
 
@@ -39,4 +43,16 @@ body {
 
 ::selection {
   background: var(--color-accent-soft);
+}
+
+/* Topic tiles: one hue per top-level topic (lib/taxonomy.ts TOPIC_ART), set inline as --hue. */
+.topic-tile {
+  background: linear-gradient(145deg, oklch(0.95 0.045 var(--hue)), oklch(0.88 0.08 var(--hue)));
+  color: oklch(0.38 0.11 var(--hue));
+}
+@media (prefers-color-scheme: dark) {
+  .topic-tile {
+    background: linear-gradient(145deg, oklch(0.34 0.06 var(--hue)), oklch(0.26 0.05 var(--hue)));
+    color: oklch(0.86 0.1 var(--hue));
+  }
 }

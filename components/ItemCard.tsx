@@ -1,8 +1,16 @@
 import Link from "next/link";
+import { Check, ChevronRight, Clock } from "lucide-react";
 import type { Ranked } from "@/lib/relevance";
-import { Card, LEVEL_LABEL, Pill, deadlineLabel } from "@/components/ui";
+import { hasDirection } from "@/lib/impact";
+import type { Database } from "@/lib/supabase/database.types";
+import { Card, LEVEL_LABEL, Pill, cx, deadlineLabel } from "@/components/ui";
+import { TopicTile } from "@/components/TopicTile";
+import { ImpactBadge, ImpactChip } from "@/components/ImpactMeter";
+import { RepAvatars } from "@/components/RepAvatars";
 
-const TYPE_LABEL: Record<string, string> = {
+type Official = Database["public"]["Tables"]["officials"]["Row"];
+
+export const TYPE_LABEL: Record<string, string> = {
   bill: "Bill",
   comment_period: "Public comment",
   hearing: "Hearing",
@@ -11,23 +19,81 @@ const TYPE_LABEL: Record<string, string> = {
   opportunity: "Opportunity",
 };
 
-export function ItemCard({ r }: { r: Ranked }) {
-  const { item, analysis } = r;
-  const urgent = r.daysLeft !== null && r.daysLeft >= 0 && r.daysLeft <= 7;
-  const label = deadlineLabel(r.daysLeft, item.comment_deadline ? "comment" : "event");
+export function ItemCard({ r, reps = [], variant = "default" }: { r: Ranked; reps?: Official[]; variant?: "default" | "hero" | "compact" }) {
+  const { item, analysis, impact } = r;
+  const headline = analysis.headline?.trim() || item.title;
+  const showTitle = headline !== item.title;
   const summary = analysis.summary && !item.title.includes(analysis.summary.slice(0, 60)) ? analysis.summary : null;
+  const open = r.daysLeft !== null && r.daysLeft >= 0;
+  const urgent = open && r.daysLeft! <= 7;
+  const label = open ? deadlineLabel(r.daysLeft, item.comment_deadline ? "comment" : "event") : null;
+  const hero = variant === "hero";
+  const facets = impact.facets.filter((f) => f.magnitude > 0).slice(0, hero ? 4 : 3);
+  const showDir = hasDirection(impact);
+
+  if (variant === "compact") {
+    return (
+      <Link href={`/items/${item.id}`} className="group block">
+        <Card className="flex items-center gap-3 !p-3 transition group-hover:border-accent">
+          <TopicTile topics={analysis.topics} size="sm" />
+          <p className="min-w-0 flex-1 truncate font-medium group-hover:text-accent">{headline}</p>
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-benefit">
+            <Check className="h-4 w-4" aria-hidden /> You acted
+          </span>
+        </Card>
+      </Link>
+    );
+  }
+
   return (
-    <Link href={`/items/${item.id}`} className="block group">
-      <Card className="transition group-hover:border-accent">
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <Pill>{LEVEL_LABEL[item.level]}</Pill>
-          <Pill>{TYPE_LABEL[item.type] ?? item.type}</Pill>
-          {r.petMatch && <Pill tone="pet">★ Pet issue</Pill>}
-          {label && r.daysLeft !== null && r.daysLeft >= 0 && <Pill tone={urgent ? "urgent" : "accent"}>{label}</Pill>}
+    <Link href={`/items/${item.id}`} className="group block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <Card
+        className={cx(
+          "flex h-full gap-4 transition duration-150 group-hover:-translate-y-0.5 group-hover:border-accent group-hover:shadow-lg group-hover:shadow-black/5",
+          r.petMatch && "border-pet/40",
+          hero && "sm:p-6",
+        )}
+      >
+        <TopicTile topics={analysis.topics} pet={r.petMatch} size={hero ? "lg" : "md"} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <Pill>{LEVEL_LABEL[item.level]}</Pill>
+            <Pill>{TYPE_LABEL[item.type] ?? item.type}</Pill>
+            {label && (
+              <Pill tone={urgent ? "urgent" : "accent"}>
+                <Clock className="h-3 w-3" aria-hidden />
+                {label}
+              </Pill>
+            )}
+          </div>
+
+          <h3
+            className={cx("mt-2 line-clamp-3 font-display font-semibold leading-snug tracking-tight group-hover:text-accent", hero ? "text-2xl" : "text-lg")}
+            title={showTitle ? undefined : item.title}
+          >
+            {headline}
+          </h3>
+          {showTitle && <p className="mt-0.5 truncate text-xs text-muted" title={item.title}>{item.title}</p>}
+          {summary && <p className={cx("mt-2 text-sm text-muted", hero ? "line-clamp-3" : "line-clamp-2")}>{summary}</p>}
+
+          {(facets.length > 0 || impact.level) && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {facets.map((f) => <ImpactChip key={f.facet} f={f} showDirection={showDir} />)}
+              <span className="ml-auto pl-2"><ImpactBadge impact={impact} /></span>
+            </div>
+          )}
+          {!facets.length && r.reasons.length > 0 && (
+            <p className="mt-2 text-xs text-muted">Why you&apos;re seeing this: {r.reasons.slice(0, 3).join(" · ")}</p>
+          )}
+
+          <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+            <RepAvatars officials={reps} />
+            <span className="ml-auto inline-flex shrink-0 items-center text-sm font-medium text-accent">
+              See details
+              <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+            </span>
+          </div>
         </div>
-        <h3 className="mt-2 font-semibold leading-snug group-hover:text-accent">{item.title}</h3>
-        {summary && <p className="mt-1.5 line-clamp-3 text-sm text-muted">{summary}</p>}
-        {r.reasons.length > 0 && <p className="mt-2 text-xs text-muted">Why you&apos;re seeing this: {r.reasons.slice(0, 3).join(" · ")}</p>}
       </Card>
     </Link>
   );

@@ -2,6 +2,7 @@
  * Zero-cost fallback analysis (no LLM): keyword rules → topics. Lets the app run without an
  * API key. Items analyzed this way stay `pending`, so real analysis replaces them once a key is set.
  */
+import { facetsForTopic, type Facet } from "@/lib/taxonomy";
 import type { Analysis } from "./analyze";
 
 const RULES: [RegExp, string][] = [
@@ -55,19 +56,26 @@ const RULES: [RegExp, string][] = [
   [/\btariffs?\b|\btrade agreements?\b|\bforeign\b/i, "foreign-policy"],
 ];
 
+export const HEURISTIC_VERSION = "heuristic-v2";
+
 const CEREMONIAL = /post office|designat(e|ing) the facility|commemorat|recogniz(e|ing) the|awareness (week|month|day)|honoring/i;
 
 export function heuristicAnalysis(item: { title: string; description: string | null; agency: string | null }): Analysis {
   const text = `${item.title} ${item.description ?? ""} ${item.agency ?? ""}`;
   const topics = [...new Set(RULES.filter(([re]) => re.test(text)).map(([, t]) => t))].slice(0, 4);
+  const ceremonial = CEREMONIAL.test(item.title);
+  // Topic → facet only: magnitude 1 and "mixed", since keyword rules can't tell size or direction.
+  const facets = ceremonial ? [] : [...new Set(topics.flatMap(facetsForTopic))].slice(0, 3);
   const firstSentences = (item.description ?? "").split(/(?<=\.)\s+/).slice(0, 2).join(" ");
   return {
+    headline: "", // the UI falls back to the title
     summary: firstSentences, // empty rather than repeating the title
     why_it_matters: "",
     topics,
     affected_groups: /\bparks?\b|\btrails?\b|\brecreation(al)?\b|\bclimb|\bwilderness\b|\bhunting\b/i.test(text) ? ["outdoor-recreationists"] : [],
+    impacts: facets.map((facet: Facet) => ({ facet, magnitude: 1, direction: "mixed" as const, groups: [], note: "" })),
     keywords: [],
-    significance: CEREMONIAL.test(item.title) ? 1 : item.description ? 3 : 2,
+    significance: ceremonial ? 1 : item.description ? 3 : 2,
     arguments_for: [],
     arguments_against: [],
   };

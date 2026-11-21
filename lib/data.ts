@@ -17,10 +17,19 @@ export async function getInterests(db: DB, userId: string): Promise<(Interest & 
   return data ?? [];
 }
 
+/** The parts of a user's profile that relevance and impact scoring use. */
+export async function getUserContext(db: DB, userId: string) {
+  const [profile, interests] = await Promise.all([getProfile(db, userId), getInterests(db, userId)]);
+  return {
+    profile,
+    interests,
+    groups: groupsForDemographics((profile?.demographics ?? {}) as Demographics),
+  };
+}
+
 export async function getFeed(db: DB, userId: string) {
-  const [profile, interests, candidatesRes, actionsRes] = await Promise.all([
-    getProfile(db, userId),
-    getInterests(db, userId),
+  const [{ profile, interests, groups }, candidatesRes, actionsRes] = await Promise.all([
+    getUserContext(db, userId),
     db.rpc("feed_candidates", { p_limit: 400 }),
     db.from("user_actions").select("item_id, type").eq("user_id", userId),
   ]);
@@ -31,7 +40,7 @@ export async function getFeed(db: DB, userId: string) {
   const candidates = (candidatesRes.data ?? []) as unknown as Candidate[];
   return buildFeed(candidates, {
     interests,
-    groups: groupsForDemographics((profile?.demographics ?? {}) as Demographics),
+    groups,
     jurisdictionIds: profile?.jurisdiction_ids ?? [],
     actedItemIds: acted,
     now: new Date(),

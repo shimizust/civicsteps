@@ -23,7 +23,7 @@ async function candidates(): Promise<Candidate[]> {
   // Shared candidate set for everyone: upcoming deadlines + recently changed items.
   const { data, error } = await db
     .from("items")
-    .select("*, item_analysis!inner(summary, why_it_matters, topics, affected_groups, keywords, significance), item_officials(official_id)")
+    .select("*, item_analysis!inner(headline, impacts, summary, why_it_matters, topics, affected_groups, keywords, significance), item_officials(official_id)")
     .or(`comment_deadline.gt.${now.toISOString()},event_at.gt.${now.toISOString()},last_action_at.gt.${new Date(now.getTime() - 7 * DAY).toISOString().slice(0, 10)}`)
     .limit(5000);
   if (error) throw error;

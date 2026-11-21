@@ -3,6 +3,7 @@
  * tags computed once and the user's profile. `feed_candidates()` in SQL does the coarse prefilter.
  */
 import { AFFECTED_GROUPS, expandTopics, topicName, type AffectedGroup } from "@/lib/taxonomy";
+import { personalImpact, type ImpactInput, type PersonalImpact } from "@/lib/impact";
 
 export type FeedItem = {
   id: string;
@@ -22,6 +23,9 @@ export type FeedItem = {
 };
 
 export type FeedAnalysis = {
+  /** Null/absent for analyses made before analyze-v2. */
+  headline?: string | null;
+  impacts?: ImpactInput[] | null;
   summary: string;
   why_it_matters: string | null;
   topics: string[];
@@ -49,6 +53,7 @@ export type Ranked = Candidate & {
   daysLeft: number | null;
   petMatch: boolean;
   acted: boolean;
+  impact: PersonalImpact;
 };
 
 const DAY = 86_400_000;
@@ -66,6 +71,20 @@ export function deadlineOf(item: FeedItem): Date | null {
   return d ? new Date(d) : null;
 }
 
+export type InterestMatch = { interest: Interest; topicHit?: string; kwHit?: string };
+
+/** Which of the user's interests this item hits, by topic tag or keyword. */
+export function matchInterests(c: Pick<Candidate, "item" | "analysis">, interests: Interest[]): InterestMatch[] {
+  const { item, analysis } = c;
+  const itemTopics = new Set(expandTopics(analysis.topics));
+  const haystack = `${item.title} ${analysis.summary} ${analysis.keywords.join(" ")} ${item.agency ?? ""}`.toLowerCase();
+  return interests.flatMap((interest) => {
+    const topicHit = interest.topic_slugs.find((t) => itemTopics.has(t));
+    const kwHit = interest.keywords.find((k) => containsKeyword(haystack, k));
+    return topicHit || kwHit ? [{ interest, topicHit, kwHit }] : [];
+  });
+}
+
 export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
   const { item, analysis } = c;
   const reasons: string[] = [];
@@ -77,20 +96,16 @@ export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
   // Deadline passed and nothing else is happening → not actionable.
   if (daysLeft !== null && daysLeft < 0 && item.type === "comment_period") return null;
 
-  const itemTopics = new Set(expandTopics(analysis.topics));
-  const haystack = `${item.title} ${analysis.summary} ${analysis.keywords.join(" ")} ${item.agency ?? ""}`.toLowerCase();
-
   // Interests: pet issues dominate.
   let topicPoints = 0;
-  for (const it of u.interests) {
-    const topicHit = it.topic_slugs.find((t) => itemTopics.has(t));
-    const kwHit = it.keywords.find((k) => containsKeyword(haystack, k));
-    if (it.is_pet && (kwHit || topicHit)) {
+  const matches = matchInterests(c, u.interests);
+  for (const { interest: it, topicHit, kwHit } of matches) {
+    if (it.is_pet) {
       // keyword hits are much stronger evidence than a broad topic overlap
       score += kwHit ? 14 : 8;
       petMatch = true;
       reasons.push(`Your pet issue: ${it.label}`);
-    } else if (topicHit || kwHit) {
+    } else {
       topicPoints += kwHit ? 4 : 3;
       if (reasons.length < 4) reasons.push(`You follow ${topicHit ? topicName(topicHit) : it.label}`);
     }
@@ -135,7 +150,9 @@ export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
   const acted = u.actedItemIds.has(item.id);
   if (acted) score -= 10;
 
-  return { ...c, score, reasons: [...new Set(reasons)], deadline, daysLeft, petMatch, acted };
+  const impact = personalImpact(analysis.impacts, { groups: u.groups, matched: matches.map((m) => m.interest) });
+
+  return { ...c, score, reasons: [...new Set(reasons)], deadline, daysLeft, petMatch, acted, impact };
 }
 
 export const MIN_SCORE = 8;
