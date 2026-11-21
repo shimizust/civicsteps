@@ -3,6 +3,7 @@
  *
  *   npm run ingest                         # everything
  *   npm run ingest -- --only=federalregister,analyze --limit=20 --wait
+ *   npm run ingest -- --only=analyze --reanalyze --wait   # re-run active items analyzed by an older prompt
  *
  * Steps: officials → items from each source → collect finished analysis batches
  *        → escalate important items to the writer model → submit new items for analysis.
@@ -12,7 +13,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { fetchFederalOfficials, type OfficialRow } from "@/lib/civic/officials";
 import { aiConfigured, FAST_MODEL, WRITER_MODEL } from "@/lib/ai/client";
 import { collectAnalysisBatch, PROMPT_VERSION, submitAnalysisBatch, type AnalyzableItem } from "@/lib/ai/analyze";
-import { heuristicAnalysis } from "@/lib/ai/heuristic";
+import { HEURISTIC_VERSION, heuristicAnalysis } from "@/lib/ai/heuristic";
 import { contentHash, type NormalizedItem } from "./normalize";
 import { fetchOpenCommentPeriods } from "./federalRegister";
 import { fetchBillDetail, fetchUpdatedBills, normalizeCongressBill } from "./congress";
@@ -31,6 +32,7 @@ const ONLY = args.only ? new Set(args.only.split(",")) : null;
 const LIMIT = args.limit ? parseInt(args.limit, 10) : undefined;
 const SINCE_DAYS = parseFloat(args["since-days"] ?? "2");
 const WAIT = args.wait === "true";
+const REANALYZE = args.reanalyze === "true";
 const since = new Date(Date.now() - SINCE_DAYS * 86_400_000);
 const should = (step: string) => !ONLY || ONLY.has(step);
 
@@ -219,18 +221,43 @@ async function escalate() {
   await submitBatch(items, WRITER_MODEL, "escalation");
 }
 
+/**
+ * After a prompt change (e.g. analyze-v2 added headlines and impacts), queue still-active items whose
+ * analysis came from an older prompt. Only items users can still act on, so the one-time cost stays bounded.
+ */
+async function requeueStale() {
+  const today = new Date().toISOString().slice(0, 10);
+  const recent = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10);
+  const { data, error } = await db
+    .from("item_analysis")
+    .select("item_id, items!inner(analysis_status, comment_deadline, event_at, last_action_at)")
+    .neq("prompt_version", PROMPT_VERSION)
+    .neq("model", "heuristic")
+    .eq("items.analysis_status", "done")
+    .or(`comment_deadline.gt.${today},event_at.gt.${today},last_action_at.gt.${recent}`, { referencedTable: "items" })
+    .limit(LIMIT ?? 10_000);
+  if (error) throw error;
+  for (const c of chunk(data.map((d) => d.item_id), 500)) {
+    await db.from("items").update({ analysis_status: "pending" }).in("id", c);
+  }
+  log(`reanalyze: queued ${data.length} active items analyzed with an older prompt`);
+}
+
 /** No API key: tag pending items with keyword rules so the feed still works. They stay `pending`. */
 async function heuristicPending() {
   const { data, error } = await db
     .from("items")
-    .select("id, title, description, agency, item_analysis(item_id)")
+    .select("id, title, description, agency, item_analysis(prompt_version)")
     .eq("analysis_status", "pending")
     .limit(LIMIT ?? 10_000);
   if (error) throw error;
-  const fresh = data.filter((d) => !d.item_analysis);
+  // New items, plus ones tagged by an older version of the rules.
+  const fresh = data
+    .filter((d) => !d.item_analysis || d.item_analysis.prompt_version !== HEURISTIC_VERSION)
+    .map(({ item_analysis: _a, ...i }) => i);
   for (const c of chunk(fresh, 500)) {
     const { error: upErr } = await db.from("item_analysis").upsert(
-      c.map((i) => ({ item_id: i.id, ...heuristicAnalysis(i), model: "heuristic", prompt_version: "heuristic-v1" })),
+      c.map((i) => ({ item_id: i.id, ...heuristicAnalysis(i), model: "heuristic", prompt_version: HEURISTIC_VERSION })),
       { onConflict: "item_id" },
     );
     if (upErr) throw upErr;
@@ -298,6 +325,7 @@ async function main() {
       await heuristicPending();
     } else {
       await collectBatches();
+      if (REANALYZE) await requeueStale();
       await escalate();
       await submitPending();
       if (WAIT) await collectBatches();

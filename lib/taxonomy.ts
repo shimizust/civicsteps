@@ -228,3 +228,98 @@ export function groupsForDemographics(d: Demographics): AffectedGroup[] {
   if (d.outdoors) g.add("outdoor-recreationists");
   return [...g];
 }
+
+// ---------------------------------------------------------------- life facets ("how this affects you")
+
+/** Fixed areas of life an item can touch. The AI scores each item once; personalization is plain TS (lib/impact.ts). */
+export const FACETS = {
+  wallet: { label: "Wallet", icon: "Wallet", description: "Taxes, fees, prices, wages and benefits" },
+  health: { label: "Health", icon: "HeartPulse", description: "Care, coverage, public health" },
+  home: { label: "Home", icon: "House", description: "Rent, ownership, your neighborhood" },
+  family: { label: "Family", icon: "Users", description: "Kids, parents, caregiving" },
+  work: { label: "Work", icon: "Briefcase", description: "Jobs, workplace rules, your business" },
+  education: { label: "Education", icon: "GraduationCap", description: "Schools, college, training" },
+  mobility: { label: "Getting around", icon: "Bus", description: "Transit, roads, biking and walking" },
+  safety: { label: "Safety", icon: "ShieldCheck", description: "Policing, emergencies, crime" },
+  environment: { label: "Outdoors & environment", icon: "Mountain", description: "Parks, public land, air, water, climate" },
+  rights: { label: "Rights & values", icon: "Scale", description: "Liberties, conscience, fairness, how government works" },
+} as const;
+
+export type Facet = keyof typeof FACETS;
+export const FACET_SLUGS = Object.keys(FACETS) as Facet[];
+
+/** Profile groups that make a facet personally relevant. */
+export const FACET_GROUPS: Record<Facet, AffectedGroup[]> = {
+  wallet: ["low-income", "middle-income", "high-income", "homeowners", "small-business-owners"],
+  health: ["medicare-beneficiaries", "medicaid-beneficiaries", "uninsured", "healthcare-workers", "people-with-disabilities", "seniors"],
+  home: ["renters", "homeowners"],
+  family: ["parents", "seniors"],
+  work: ["hourly-workers", "union-members", "small-business-owners", "tech-workers", "teachers", "farmers", "healthcare-workers"],
+  education: ["students", "parents", "teachers"],
+  mobility: ["transit-riders", "drivers"],
+  safety: ["urban-residents", "rural-residents"],
+  environment: ["outdoor-recreationists", "farmers", "rural-residents"],
+  rights: ["immigrants", "people-with-disabilities"],
+};
+
+const TOPIC_FACETS: Record<string, Facet[]> = {
+  "public-lands": ["environment"],
+  environment: ["environment", "health"],
+  "environment/clean-energy": ["environment", "wallet"],
+  "environment/fossil-fuels": ["environment", "wallet"],
+  housing: ["home", "wallet"],
+  "housing/zoning": ["home"],
+  transportation: ["mobility"],
+  economy: ["wallet", "work"],
+  "economy/taxes": ["wallet"],
+  "economy/consumer-protection": ["wallet"],
+  health: ["health", "wallet"],
+  "health/mental-health": ["health"],
+  "health/reproductive-health": ["health", "rights"],
+  education: ["education", "family"],
+  "education/higher-ed": ["education", "wallet"],
+  "education/childcare": ["family", "wallet"],
+  "civil-rights": ["rights"],
+  "justice-safety": ["safety", "rights"],
+  "justice-safety/emergency-services": ["safety"],
+  immigration: ["rights", "family"],
+  technology: ["rights"],
+  "technology/broadband": ["education", "work"],
+  "technology/ai": ["work", "rights"],
+  government: ["rights"],
+  "government/budget": ["wallet"],
+  "social-safety-net": ["wallet", "family"],
+  "social-safety-net/paid-leave": ["family", "work"],
+  "veterans-military": ["wallet", "health"],
+  agriculture: ["work", "wallet"],
+  "foreign-policy": ["wallet"],
+};
+
+/** Facets a topic touches: the child's own mapping if it has one, otherwise its parent's. */
+export function facetsForTopic(slug: string): Facet[] {
+  return TOPIC_FACETS[slug] ?? TOPIC_FACETS[topicParent(slug)] ?? [];
+}
+
+/** Visual identity per top-level topic: a lucide icon name and an OKLCH hue for the tile. */
+export const TOPIC_ART: Record<string, { icon: string; hue: number }> = {
+  "public-lands": { icon: "Mountain", hue: 150 },
+  environment: { icon: "Leaf", hue: 135 },
+  housing: { icon: "House", hue: 60 },
+  transportation: { icon: "Bus", hue: 235 },
+  economy: { icon: "Coins", hue: 85 },
+  health: { icon: "HeartPulse", hue: 15 },
+  education: { icon: "GraduationCap", hue: 270 },
+  "civil-rights": { icon: "Scale", hue: 300 },
+  "justice-safety": { icon: "Shield", hue: 215 },
+  immigration: { icon: "Globe", hue: 195 },
+  technology: { icon: "Cpu", hue: 255 },
+  government: { icon: "Landmark", hue: 35 },
+  "social-safety-net": { icon: "HandHeart", hue: 345 },
+  "veterans-military": { icon: "Medal", hue: 25 },
+  agriculture: { icon: "Wheat", hue: 75 },
+  "foreign-policy": { icon: "Earth", hue: 205 },
+};
+
+export function topicParent(slug: string): string {
+  return TOPICS.find((t) => t.slug === slug)?.parent ?? slug.split("/")[0];
+}

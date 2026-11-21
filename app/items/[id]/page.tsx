@@ -1,8 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
-import { getItem, getMyOfficials } from "@/lib/data";
-import { topicName } from "@/lib/taxonomy";
+import { getItem, getMyOfficials, getUserContext } from "@/lib/data";
+import { FACETS, topicName } from "@/lib/taxonomy";
+import { matchInterests, type FeedAnalysis } from "@/lib/relevance";
+import { hasDirection, personalImpact, unaffectedFacets, type PersonalImpact } from "@/lib/impact";
+import { ImpactBadge, ImpactRow } from "@/components/ImpactMeter";
+import { TopicTile } from "@/components/TopicTile";
+import { TYPE_LABEL } from "@/components/ItemCard";
 import type { ActionType } from "@/lib/gamification";
 import { ActionPanel, MarkRead } from "@/components/ActionPanel";
 import { OfficialCard } from "@/components/OfficialCard";
@@ -13,13 +18,19 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const { supabase, user } = await requireUser();
   if (!user) redirect(`/login?next=/items/${id}`);
 
-  const [item, mine, myActions] = await Promise.all([
+  const [item, mine, ctx, myActions] = await Promise.all([
     getItem(supabase, id),
     getMyOfficials(supabase, user.id),
+    getUserContext(supabase, user.id),
     supabase.from("user_actions").select("type").eq("user_id", user.id).eq("item_id", id),
   ]);
   if (!item) notFound();
   const a = item.item_analysis;
+  const analysis = a as unknown as FeedAnalysis | null;
+  const matches = analysis ? matchInterests({ item, analysis }, ctx.interests) : [];
+  const impact = personalImpact(analysis?.impacts, { groups: ctx.groups, matched: matches.map((m) => m.interest) });
+  const isPet = matches.some((m) => m.interest.is_pet);
+  const headline = a?.headline?.trim() || null;
 
   const deadline = item.comment_deadline ?? item.event_at;
   const daysLeft = deadline ? Math.ceil((new Date(deadline).getTime() - Date.now()) / 86_400_000) : null;
@@ -40,14 +51,23 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     <article>
       <MarkRead itemId={item.id} />
       <Link href="/feed" className="text-sm text-muted hover:text-accent">← Back to feed</Link>
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        <Pill>{LEVEL_LABEL[item.level]}</Pill>
-        {item.agency && <Pill>{item.agency}</Pill>}
-        {daysLeft !== null && daysLeft >= 0 && <Pill tone={daysLeft <= 7 ? "urgent" : "accent"}>{deadlineLabel(daysLeft, isComment ? "comment" : "event")}</Pill>}
-        {daysLeft !== null && daysLeft < 0 && isComment && <Pill tone="urgent">Comment period closed</Pill>}
+      <div className="mt-4 flex items-start gap-4">
+        <TopicTile topics={a?.topics ?? []} pet={isPet} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap gap-1.5">
+            <Pill>{LEVEL_LABEL[item.level]}</Pill>
+            <Pill>{TYPE_LABEL[item.type] ?? item.type}</Pill>
+            {item.agency && <Pill>{item.agency}</Pill>}
+            {daysLeft !== null && daysLeft >= 0 && <Pill tone={daysLeft <= 7 ? "urgent" : "accent"}>{deadlineLabel(daysLeft, isComment ? "comment" : "event")}</Pill>}
+            {daysLeft !== null && daysLeft < 0 && isComment && <Pill tone="urgent">Comment period closed</Pill>}
+          </div>
+          <h1 className="mt-3 font-display text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{headline ?? item.title}</h1>
+          {headline && <p className="mt-1.5 text-sm text-muted">{item.title}</p>}
+          {item.status && <p className="mt-2 text-sm text-muted">Status: {item.status}{item.last_action_at && ` (${new Date(item.last_action_at).toLocaleDateString()})`}</p>}
+        </div>
       </div>
-      <h1 className="mt-3 font-display text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{item.title}</h1>
-      {item.status && <p className="mt-2 text-sm text-muted">Status: {item.status}{item.last_action_at && ` (${new Date(item.last_action_at).toLocaleDateString()})`}</p>}
+
+      <Scorecard impact={impact} heuristic={a?.model === "heuristic"} />
 
       <Card className="mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">In plain English</h2>
@@ -114,5 +134,30 @@ function Args({ title, items }: { title: string; items: string[] }) {
       <h3 className="text-sm font-semibold">{title}</h3>
       <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted">{items.map((x) => <li key={x}>{x}</li>)}</ul>
     </div>
+  );
+}
+
+function Scorecard({ impact, heuristic }: { impact: PersonalImpact; heuristic: boolean }) {
+  if (!impact.facets.length) return null;
+  const showDir = hasDirection(impact);
+  const rest = unaffectedFacets(impact);
+  return (
+    <Card className="mt-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">How this affects you</h2>
+        <ImpactBadge impact={impact} size="lg" />
+      </div>
+      <ul className="mt-2 divide-y divide-line">
+        {impact.facets.map((f) => <ImpactRow key={f.facet} f={f} showDirection={showDir} />)}
+      </ul>
+      {rest.length > 0 && (
+        <p className="mt-2 text-xs text-muted">Little or no direct effect on: {rest.map((f) => FACETS[f].label).join(", ")}.</p>
+      )}
+      <p className="mt-3 text-xs text-muted">
+        {heuristic
+          ? "Rough estimate from topic tags. A detailed AI estimate is on the way."
+          : "AI estimate based on the item text and your profile. \"Helps\" and \"costs\" describe concrete effects on the groups named, not whether the policy is good. Check the source before deciding."}
+      </p>
+    </Card>
   );
 }

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
-import { getFeed, getProfile, getStats } from "@/lib/data";
+import { getFeed, getMyOfficials, getProfile, getStats } from "@/lib/data";
 import { ItemCard } from "@/components/ItemCard";
 import { Card, Empty, LinkButton, PageTitle, SectionTitle } from "@/components/ui";
 import type { Ranked } from "@/lib/relevance";
@@ -14,7 +14,9 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   if (!profile?.onboarded_at) redirect("/onboarding");
 
   const { level = "all" } = await searchParams;
-  const [feed, stats] = await Promise.all([getFeed(supabase, user.id), getStats(supabase, user.id)]);
+  const [feed, stats, officials] = await Promise.all([getFeed(supabase, user.id), getStats(supabase, user.id), getMyOfficials(supabase, user.id)]);
+  const repsById = new Map(officials.map((o) => [o.id, o]));
+  const repsFor = (r: Ranked) => r.my_official_ids.flatMap((id) => repsById.get(id) ?? []);
   const keep = (r: Ranked) => level === "all" || r.item.level === level || (level === "city" && r.item.level === "county");
   const actNow = feed.actNow.filter(keep);
   const yourReps = feed.yourReps.filter(keep);
@@ -39,18 +41,18 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
       </nav>
 
       <SectionTitle hint="Deadlines in the next 2 weeks">Act now</SectionTitle>
-      {actNow.length ? <List items={actNow} /> : <Empty>No deadlines coming up on your issues. We&apos;ll email you when one opens.</Empty>}
+      {actNow.length ? <List items={actNow} repsFor={repsFor} hero /> : <Empty>No deadlines coming up on your issues. We&apos;ll email you when one opens.</Empty>}
 
       {yourReps.length > 0 && (
         <>
           <SectionTitle hint="Bills your representatives are sponsoring or voting on">Your reps are involved</SectionTitle>
-          <List items={yourReps} />
+          <List items={yourReps} repsFor={repsFor} />
         </>
       )}
 
       <SectionTitle>On your radar</SectionTitle>
       {radar.length ? (
-        <List items={radar} />
+        <List items={radar} repsFor={repsFor} />
       ) : (
         <Empty>
           Nothing else matches yet. Try following more topics or adding a pet issue.{" "}
@@ -61,19 +63,29 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
       {feed.done.length > 0 && (
         <>
           <SectionTitle>You took action</SectionTitle>
-          <List items={feed.done} />
+          <ul className="space-y-2">
+            {feed.done.map((r) => <li key={r.item.id}><ItemCard r={r} variant="compact" /></li>)}
+          </ul>
         </>
       )}
     </div>
   );
 }
 
-function List({ items }: { items: Ranked[] }) {
+type RepsFor = (r: Ranked) => Awaited<ReturnType<typeof getMyOfficials>>;
+
+/** Cards in a 2-column grid on wider screens; `hero` makes the first (most urgent) one full-width and larger. */
+function List({ items, repsFor, hero }: { items: Ranked[]; repsFor: RepsFor; hero?: boolean }) {
   return (
-    <ul className="space-y-3">
-      {items.map((r) => (
-        <li key={r.item.id}><ItemCard r={r} /></li>
-      ))}
+    <ul className="grid gap-3 sm:grid-cols-2">
+      {items.map((r, i) => {
+        const big = hero && i === 0;
+        return (
+          <li key={r.item.id} className={big ? "sm:col-span-2" : undefined}>
+            <ItemCard r={r} reps={repsFor(r)} variant={big ? "hero" : "default"} />
+          </li>
+        );
+      })}
     </ul>
   );
 }

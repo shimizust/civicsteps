@@ -23,7 +23,7 @@ function cand(over: Partial<Candidate["item"]>, analysis: Partial<Candidate["ana
       source: "test",
       ...over,
     },
-    analysis: { summary: "", why_it_matters: null, topics: [], affected_groups: [], keywords: [], significance: 3, ...analysis },
+    analysis: { headline: "", impacts: [], summary: "", why_it_matters: null, topics: [], affected_groups: [], keywords: [], significance: 3, ...analysis },
     my_official_ids: mine,
   };
 }
@@ -43,7 +43,11 @@ describe("scoreCandidate", () => {
   it("ranks a pet-issue NPS comment period above an unrelated significant bill", () => {
     const nps = cand(
       { type: "comment_period", title: "Wilderness Climbing Management; Fixed Anchors", agency: "National Park Service", comment_deadline: inDays(20) },
-      { topics: ["public-lands/climbing-access"], significance: 3 },
+      {
+        topics: ["public-lands/climbing-access"],
+        significance: 3,
+        impacts: [{ facet: "environment", magnitude: 2, direction: "benefit", groups: ["outdoor-recreationists"], note: "Keeps existing anchors" }],
+      },
     );
     const other = cand({ title: "Tax Relief Act" }, { topics: ["economy/taxes"], significance: 5 });
     const a = scoreCandidate(nps, user)!;
@@ -51,6 +55,9 @@ describe("scoreCandidate", () => {
     expect(a.petMatch).toBe(true);
     expect(a.score).toBeGreaterThan(b.score);
     expect(a.reasons).toContain("Your pet issue: Climbing access in national parks");
+    expect(a.impact.level).toBe("high"); // base 2 + "you spend time outdoors"
+    expect(a.impact.facets[0]).toMatchObject({ facet: "environment", magnitude: 3 });
+    expect(a.impact.facets[0].because).toEqual(["you spend time outdoors", "your pet issue: Climbing access in national parks"]);
   });
 
   it("matches keywords on word boundaries", () => {

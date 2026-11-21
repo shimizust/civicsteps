@@ -79,14 +79,14 @@ isOneToOne: false
                   ]
                 },"item_analysis": {
                   Row: {
-                    "affected_groups": (string)[],"arguments_against": (string)[],"arguments_for": (string)[],"created_at": string,"item_id": string,"keywords": (string)[],"model": string,"prompt_version": string,"significance": number,"summary": string,"topics": (string)[],"why_it_matters": string | null
+                    "affected_groups": (string)[],"arguments_against": (string)[],"arguments_for": (string)[],"created_at": string,"headline": string | null,"impacts": NonNullable<Json>,"item_id": string,"keywords": (string)[],"model": string,"prompt_version": string,"significance": number,"summary": string,"topics": (string)[],"why_it_matters": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "affected_groups"?: (string)[],"arguments_against"?: (string)[],"arguments_for"?: (string)[],"created_at"?: string,"item_id": string,"keywords"?: (string)[],"model": string,"prompt_version": string,"significance": number,"summary": string,"topics"?: (string)[],"why_it_matters"?: string | null
+                    "affected_groups"?: (string)[],"arguments_against"?: (string)[],"arguments_for"?: (string)[],"created_at"?: string,"headline"?: string | null,"impacts"?: NonNullable<Json>,"item_id": string,"keywords"?: (string)[],"model": string,"prompt_version": string,"significance": number,"summary": string,"topics"?: (string)[],"why_it_matters"?: string | null
                   }
                   Update: {
-                    "affected_groups"?: (string)[],"arguments_against"?: (string)[],"arguments_for"?: (string)[],"created_at"?: string,"item_id"?: string,"keywords"?: (string)[],"model"?: string,"prompt_version"?: string,"significance"?: number,"summary"?: string,"topics"?: (string)[],"why_it_matters"?: string | null
+                    "affected_groups"?: (string)[],"arguments_against"?: (string)[],"arguments_for"?: (string)[],"created_at"?: string,"headline"?: string | null,"impacts"?: NonNullable<Json>,"item_id"?: string,"keywords"?: (string)[],"model"?: string,"prompt_version"?: string,"significance"?: number,"summary"?: string,"topics"?: (string)[],"why_it_matters"?: string | null
                   }
                   Relationships: [
                     {

@@ -7,18 +7,34 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod/v4";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { AFFECTED_GROUP_SLUGS, TOPICS } from "@/lib/taxonomy";
+import { AFFECTED_GROUP_SLUGS, FACETS, FACET_SLUGS, TOPICS } from "@/lib/taxonomy";
 import { anthropic, FAST_MODEL } from "./client";
 
-export const PROMPT_VERSION = "analyze-v1";
+export const PROMPT_VERSION = "analyze-v2";
 
 const topicSlugs = TOPICS.map((t) => t.slug) as [string, ...string[]];
+const groupSlugs = AFFECTED_GROUP_SLUGS as [string, ...string[]];
+
+export const ImpactSchema = z.object({
+  facet: z.enum(FACET_SLUGS as [string, ...string[]]),
+  magnitude: z.number().int().describe("1 = minor or indirect, 2 = noticeable, 3 = major, direct change to daily life or money"),
+  direction: z
+    .enum(["benefit", "cost", "mixed"])
+    .describe("For the people in `groups` (or the general public if empty). 'mixed' unless the text directly supports a concrete gain or loss."),
+  groups: z.array(z.enum(groupSlugs)).describe("Who feels this most; empty if broadly everyone"),
+  note: z.string().describe("One factual clause, max 15 words, e.g. 'Raises park entry fees by $5'"),
+});
+export type Impact = z.infer<typeof ImpactSchema>;
 
 export const AnalysisSchema = z.object({
+  headline: z
+    .string()
+    .describe("Max 12 words. Plain verb phrase saying what this does, no jargon or bill numbers, e.g. 'Lets climbers keep fixed anchors in wilderness areas'"),
   summary: z.string().describe("2-3 sentence plain-language summary a non-expert can follow. Neutral tone."),
   why_it_matters: z.string().describe("One sentence on who it affects in practice and how."),
   topics: z.array(z.enum(topicSlugs)).describe("1-4 most specific matching topic slugs"),
-  affected_groups: z.array(z.enum(AFFECTED_GROUP_SLUGS as [string, ...string[]])),
+  affected_groups: z.array(z.enum(groupSlugs)),
+  impacts: z.array(ImpactSchema).describe("0-4 areas of life this concretely changes, most important first"),
   keywords: z
     .array(z.string())
     .describe("3-8 lowercase specific keywords: places, programs, agencies, species, parks (e.g. 'joshua tree', 'bolting')"),
@@ -32,6 +48,7 @@ export const AnalysisSchema = z.object({
 export type Analysis = z.infer<typeof AnalysisSchema>;
 
 const taxonomyText = TOPICS.map((t) => `- ${t.slug}: ${t.name}`).join("\n");
+const facetText = Object.entries(FACETS).map(([k, f]) => `- ${k}: ${f.label} (${f.description})`).join("\n");
 
 // Stable across every request so it caches.
 const SYSTEM = `You analyze U.S. government items (bills, proposed rules open for public comment, hearings, council agenda items) for a nonpartisan civic engagement app.
@@ -39,6 +56,13 @@ const SYSTEM = `You analyze U.S. government items (bills, proposed rules open fo
 Write for a busy resident with no policy background. Be strictly neutral: describe what the item does, not whether it is good. Present arguments for and against fairly and with equal care. Never guess at facts the item text does not support; if the text is thin (e.g. only a title), keep the summary short and say what is known.
 
 Significance reflects real-world impact, not political attention. Ceremonial resolutions, commemorations and naming bills are 1. Technical corrections are 1-2.
+
+Impacts describe how the item would change people's lives across these areas:
+${facetText}
+- Only include areas with a real, concrete effect; most items touch 1-2. Ceremonial and purely procedural items get none.
+- Direction is from the point of view of the listed groups, not society as a whole: a fee increase is a "cost" for visitors even if it funds something good. Use "mixed" when the effect cuts both ways, depends on implementation, or the text doesn't say.
+- Never judge moral, religious or ideological questions. For "rights" always use "mixed" and describe what is at stake, neutrally.
+- Notes state facts from the text (amounts, dates, who), never opinions.
 
 Topic slugs (use only these, prefer the most specific child):
 ${taxonomyText}`;
@@ -80,9 +104,25 @@ export function analysisParams(item: AnalyzableItem, model = FAST_MODEL): Anthro
   };
 }
 
+export function normalizeImpacts(impacts: Impact[]): Impact[] {
+  const seen = new Set<string>();
+  return impacts
+    .filter((i) => FACET_SLUGS.includes(i.facet as never) && !seen.has(i.facet) && seen.add(i.facet))
+    .map((i) => ({
+      ...i,
+      magnitude: Math.min(3, Math.max(1, Math.round(i.magnitude))),
+      direction: i.facet === "rights" ? "mixed" : i.direction,
+      groups: [...new Set(i.groups)].filter((g) => AFFECTED_GROUP_SLUGS.includes(g as never)),
+      note: i.note.trim(),
+    }))
+    .slice(0, 4);
+}
+
 export function normalizeAnalysis(a: Analysis): Analysis {
   return {
     ...a,
+    headline: a.headline.trim().replace(/\.$/, ""),
+    impacts: normalizeImpacts(a.impacts),
     topics: [...new Set(a.topics)].slice(0, 6),
     affected_groups: [...new Set(a.affected_groups)],
     keywords: [...new Set(a.keywords.map((k) => k.toLowerCase().trim()).filter(Boolean))].slice(0, 10),

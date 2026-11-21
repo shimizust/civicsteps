@@ -10,7 +10,7 @@ function itemRow(r: Ranked) {
       ? `<span style="color:#b4530b;font-weight:600">${r.item.comment_deadline ? "Comments close" : "On the agenda"} ${r.daysLeft === 0 ? "today" : r.daysLeft === 1 ? "tomorrow" : `in ${r.daysLeft} days`}</span><br>`
       : "";
   return `<tr><td style="padding:12px 0;border-bottom:1px solid #e2ded3">
-    ${when}<a href="${site()}/items/${r.item.id}" style="color:#1c2321;font-weight:600;text-decoration:none">${esc(r.item.title)}</a>
+    ${when}<a href="${site()}/items/${r.item.id}" style="color:#1c2321;font-weight:600;text-decoration:none">${esc(r.analysis.headline?.trim() || r.item.title)}</a>
     ${r.analysis.summary ? `<p style="margin:4px 0 0;color:#5d6763;font-size:14px">${esc(r.analysis.summary.slice(0, 280))}</p>` : ""}
   </td></tr>`;
 }
