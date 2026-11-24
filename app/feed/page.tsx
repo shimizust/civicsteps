@@ -69,6 +69,13 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
       <SectionTitle>On your radar</SectionTitle>
       {radar.length ? (
         <List items={radar} repsFor={repsFor} places={feed.places} />
+      ) : level === "state" && !actNow.length && !yourReps.length ? (
+        <Empty>
+          No {profile.state ?? "state"} bills match your interests right now. Between legislative sessions, this shows laws signed
+          in the last four months.{" "}
+          <a className="text-accent underline" href="/browse?level=state">Browse all state items</a> or{" "}
+          <a className="text-accent underline" href="/onboarding?step=3">edit interests</a>.
+        </Empty>
       ) : (
         <Empty>
           Nothing else matches yet. Try following more topics or adding a pet issue.{" "}

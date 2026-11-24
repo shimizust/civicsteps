@@ -7,8 +7,8 @@
  *   npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only --wait   # just backfill new areas
  *
  * Areas are pulled in on demand: state bills only for states where users live, council items for cities in
- * legistar.config.ts. The first time a state or city is ingested it is backfilled (BACKFILL_DAYS of history)
- * and recorded in ingest_coverage; after that it gets the usual short lookback. Saving a ZIP in an area
+ * legistar.config.ts. The first time a state or city is ingested it is backfilled (as far back as feeds show
+ * its items) and recorded in ingest_coverage; after that it gets the usual short lookback. Saving a ZIP in an area
  * that isn't covered yet triggers .github/workflows/backfill.yml (lib/coverage.ts).
  *
  * Steps: officials → items from each source → map street addresses in city items → collect finished analysis batches
@@ -26,7 +26,7 @@ import { locateItems } from "./locate";
 import { contentHash, type NormalizedItem } from "./normalize";
 import { fetchOpenCommentPeriods } from "./federalRegister";
 import { fetchBillDetail, fetchUpdatedBills, normalizeCongressBill } from "./congress";
-import { fetchStateBills } from "./openstates";
+import { ACTIVE_DAYS, ENACTED_DAYS, fetchStateBills } from "./openstates";
 import { fetchCityMatters, fetchCouncilMembers } from "./legistar";
 import { citySourceScope, LOCAL_SOURCES, stateScope } from "./legistar.config";
 import { estimateCost, type UsageTotals } from "./cost";
@@ -44,9 +44,11 @@ const WAIT = args.wait === "true";
 const REANALYZE = args.reanalyze === "true";
 const NEW_AREAS_ONLY = args["new-areas-only"] === "true";
 const since = new Date(Date.now() - SINCE_DAYS * 86_400_000);
-// A new state's first fetch reaches back as far as the feed shows inactive items (feed_candidates: 45 days).
-const BACKFILL_DAYS = 45;
-const BACKFILL_PAGES = 15; // × 20 bills, most recently updated first; Open States' free tier is ~10 req/min
+// A new area's first fetch reaches back as far as feed_candidates() shows its items: 45 days of activity,
+// and for states also laws signed in the last 120 days (which is all there is while a legislature is out).
+const CITY_BACKFILL_DAYS = ACTIVE_DAYS;
+const STATE_BACKFILL_DAYS = ENACTED_DAYS;
+const BACKFILL_PAGES = 15; // × 20 bills; Open States' free tier is ~10 req/min
 const should = (step: string) => !ONLY || ONLY.has(step);
 
 const db = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -72,6 +74,34 @@ async function upsertOfficials(rows: OfficialRow[]) {
     const { error } = await db.from("officials").upsert(c, { onConflict: "id" });
     if (error) throw error;
   }
+}
+
+/**
+ * Loads a city's council and links it to every user in that city. Users are linked to local officials when
+ * they save a ZIP, so anyone who signed up before their city's council was first ingested would otherwise
+ * never get them; council turnover is picked up the same way.
+ */
+async function syncCouncil(src: (typeof LOCAL_SOURCES)[number]) {
+  const council = await fetchCouncilMembers(src);
+  if (!council.length) return;
+  await upsertOfficials(council);
+
+  const { data: residents, error } = await db.from("profiles").select("user_id").contains("jurisdiction_ids", [src.jurisdictionId]);
+  if (error) throw error;
+  const { data: seats, error: seatErr } = await db.from("officials").select("id").eq("jurisdiction_id", src.jurisdictionId);
+  if (seatErr) throw seatErr;
+  const current = new Set(council.map((o) => o.id));
+  const former = (seats ?? []).map((o) => o.id).filter((id) => !current.has(id));
+  for (const c of chunk(residents.map((r) => r.user_id), 200)) {
+    if (former.length) {
+      const { error: delErr } = await db.from("user_officials").delete().in("user_id", c).in("official_id", former);
+      if (delErr) throw delErr;
+    }
+    const links = c.flatMap((user_id) => council.map((o) => ({ user_id, official_id: o.id })));
+    const { error: upErr } = await db.from("user_officials").upsert(links, { onConflict: "user_id,official_id", ignoreDuplicates: true });
+    if (upErr) throw upErr;
+  }
+  log(`officials: ${council.length} ${src.name} council, linked to ${residents.length} residents`);
 }
 
 /** Upserts items; resets analysis only when analysis-relevant content changed. Returns count of new/changed. */
@@ -181,7 +211,7 @@ async function recordBackfill(scope: string, failure: string | null) {
   if (error) console.error(`coverage ${scope}:`, error.message);
 }
 
-const backfillSince = () => new Date(Date.now() - BACKFILL_DAYS * 86_400_000);
+const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
 
 /** State bills for every state a user lives in; states seen for the first time get a deeper backfill. */
 async function ingestStates() {
@@ -196,7 +226,7 @@ async function ingestStates() {
     if (NEW_AREAS_ONLY && !isNew) continue;
     const failure = await runSource(
       `openstates ${st}${isNew ? " (backfill)" : ""}`,
-      () => fetchStateBills(st, isNew ? backfillSince() : since, isNew ? { maxPages: BACKFILL_PAGES, by: "action" } : {}),
+      () => fetchStateBills(st, isNew ? daysAgo(STATE_BACKFILL_DAYS) : since, isNew ? { maxPages: BACKFILL_PAGES, by: "action" } : {}),
       "openstates",
     );
     // Without a key nothing was fetched: not a backfill.
@@ -204,7 +234,7 @@ async function ingestStates() {
   }
 }
 
-/** Council items for each configured Legistar city; a city's first run backfills BACKFILL_DAYS. */
+/** Council items for each configured Legistar city; a city's first run also loads its council and backfills. */
 async function ingestCities() {
   if (!should("legistar")) return;
   const covered = await loadCovered(LOCAL_SOURCES.map(citySourceScope));
@@ -212,9 +242,13 @@ async function ingestCities() {
   for (const src of LOCAL_SOURCES) {
     const isNew = !!covered && !covered.has(citySourceScope(src));
     if (NEW_AREAS_ONLY && !isNew) continue;
+    // The on-demand backfill skips the officials step, so a new city's council comes in here.
+    if (isNew && !should("officials")) {
+      await syncCouncil(src).catch((err) => console.error(`council ${src.client} failed:`, err instanceof Error ? err.message : err));
+    }
     const failure = await runSource(
       `legistar ${src.client}${isNew ? " (backfill)" : ""}`,
-      () => fetchCityMatters(src, isNew ? backfillSince() : since),
+      () => fetchCityMatters(src, isNew ? daysAgo(CITY_BACKFILL_DAYS) : since),
       "legistar",
     );
     if (isNew) await recordBackfill(citySourceScope(src), failure);
@@ -368,14 +402,15 @@ async function escalate() {
  */
 async function requeueStale() {
   const today = new Date().toISOString().slice(0, 10);
-  const recent = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10);
+  const recent = daysAgo(ACTIVE_DAYS).toISOString().slice(0, 10);
+  const enacted = daysAgo(ENACTED_DAYS).toISOString().slice(0, 10);
   const { data, error } = await db
     .from("item_analysis")
-    .select("item_id, items!inner(analysis_status, comment_deadline, event_at, last_action_at)")
+    .select("item_id, items!inner(analysis_status, comment_deadline, event_at, last_action_at, enacted_at)")
     .neq("prompt_version", PROMPT_VERSION)
     .neq("model", "heuristic")
     .eq("items.analysis_status", "done")
-    .or(`comment_deadline.gt.${today},event_at.gt.${today},last_action_at.gt.${recent}`, { referencedTable: "items" })
+    .or(`comment_deadline.gt.${today},event_at.gt.${today},last_action_at.gt.${recent},enacted_at.gt.${enacted}`, { referencedTable: "items" })
     .limit(LIMIT ?? 10_000);
   if (error) throw error;
   await updateItems({ analysis_status: "pending" }, data.map((d) => d.item_id));
@@ -415,9 +450,7 @@ async function main() {
     log(`officials: ${fed.length} federal`);
     for (const src of LOCAL_SOURCES) {
       try {
-        const council = await fetchCouncilMembers(src);
-        await upsertOfficials(council);
-        log(`officials: ${council.length} ${src.name} council`);
+        await syncCouncil(src);
       } catch (err) {
         console.error(`council ${src.client} failed:`, err instanceof Error ? err.message : err);
       }

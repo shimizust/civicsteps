@@ -19,6 +19,8 @@ export type FeedItem = {
   last_action_at: string | null;
   comment_deadline: string | null;
   event_at: string | null;
+  /** State bills signed into law; absent on rows from before the column existed. */
+  enacted_at?: string | null;
   external_id: string;
   source: string;
 };

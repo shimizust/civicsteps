@@ -14,7 +14,27 @@ type OSBill = {
   openstates_url: string;
   abstracts?: { abstract: string }[];
   sponsorships?: { name: string; primary: boolean; person?: { id: string } | null }[];
+  actions?: { date: string; description: string; classification: string[] }[];
 };
+
+/** How long feeds show a state bill after its last action, and a signed law after signing (feed_candidates()). */
+export const ACTIVE_DAYS = 45;
+export const ENACTED_DAYS = 120;
+
+/** When the bill was signed into law (or became law without a signature), from Open States' action classifications. */
+export function enactedDate(b: Pick<OSBill, "actions">): string | null {
+  const dates = (b.actions ?? [])
+    .filter((a) => a.classification.includes("executive-signature") || a.classification.includes("became-law"))
+    .map((a) => a.date.slice(0, 10))
+    .sort();
+  return dates[0] ?? null;
+}
+
+/** Whether a feed would show this bill: recent action, or signed into law recently. Others aren't worth analyzing. */
+export function isFeedWorthy(i: Pick<NormalizedItem, "last_action_at" | "enacted_at">, now = new Date()): boolean {
+  const daysAgo = (d: string | null | undefined) => (d ? (now.getTime() - Date.parse(d)) / 86_400_000 : Infinity);
+  return daysAgo(i.last_action_at) < ACTIVE_DAYS || daysAgo(i.enacted_at) < ENACTED_DAYS;
+}
 
 export function normalizeOpenStatesBill(b: OSBill, state: string): NormalizedItem {
   const st = state.toLowerCase();
@@ -34,6 +54,7 @@ export function normalizeOpenStatesBill(b: OSBill, state: string): NormalizedIte
     introduced_at: b.first_action_date?.slice(0, 10) ?? null,
     last_action_at: b.latest_action_date?.slice(0, 10) ?? null,
     last_action: b.latest_action_description ?? null,
+    enacted_at: enactedDate(b),
     comment_deadline: null,
     officials: (b.sponsorships ?? [])
       .filter((s) => s.person?.id)
@@ -43,7 +64,8 @@ export function normalizeOpenStatesBill(b: OSBill, state: string): NormalizedIte
 
 /**
  * Bills changed since `since`. `by: "updated"` (nightly) catches any change to a bill's record;
- * `by: "action"` (backfill) only bills with a legislative action since then, i.e. ones the feed would show.
+ * `by: "action"` (backfill) only bills with a legislative action since then.
+ * Bills a feed wouldn't show (stale, vetoed, died in committee) are dropped so they aren't analyzed.
  */
 export async function fetchStateBills(
   state: string,
@@ -57,13 +79,15 @@ export async function fetchStateBills(
     const u = new URL("https://v3.openstates.org/bills");
     u.searchParams.set("jurisdiction", `ocd-jurisdiction/country:us/state:${state.toLowerCase()}/government`);
     u.searchParams.set(by === "action" ? "action_since" : "updated_since", since.toISOString().slice(0, 10));
+    // Not latest_action_desc: thousands of bills share a last-action date, and pages sorted on a tie overlap.
     u.searchParams.set("sort", "updated_desc");
     u.searchParams.set("per_page", "20");
     u.searchParams.set("page", String(page));
     u.searchParams.append("include", "sponsorships");
     u.searchParams.append("include", "abstracts");
+    u.searchParams.append("include", "actions");
     const data = await getJson<{ results: OSBill[]; pagination: { max_page: number } }>(u, { headers: { "X-API-KEY": key } });
-    out.push(...data.results.map((b) => normalizeOpenStatesBill(b, state)));
+    out.push(...data.results.map((b) => normalizeOpenStatesBill(b, state)).filter((i) => isFeedWorthy(i)));
     if (page >= data.pagination.max_page) break;
     await new Promise((r) => setTimeout(r, 6500)); // free tier: ~10 requests/minute
   }
