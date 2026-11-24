@@ -11,7 +11,7 @@ import { matchInterests, type FeedAnalysis } from "@/lib/relevance";
 import { hasDirection, personalImpact, unaffectedFacets, type PersonalImpact } from "@/lib/impact";
 import { ImpactBadge, ImpactRow } from "@/components/ImpactMeter";
 import { TopicTile } from "@/components/TopicTile";
-import { TYPE_LABEL } from "@/components/ItemCard";
+import { typeLabel } from "@/components/ItemCard";
 import type { ActionType } from "@/lib/gamification";
 import { ActionPanel, MarkRead } from "@/components/ActionPanel";
 import { OfficialCard } from "@/components/OfficialCard";
@@ -87,7 +87,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-1.5">
             <Pill>{LEVEL_LABEL[item.level]}</Pill>
-            <Pill>{TYPE_LABEL[item.type] ?? item.type}</Pill>
+            <Pill>{typeLabel(item)}</Pill>
             {item.agency && <Pill>{item.agency}</Pill>}
             {daysLeft !== null && daysLeft >= 0 && <Pill tone={daysLeft <= 7 ? "urgent" : "accent"}>{deadlineLabel(daysLeft, isComment ? "comment" : "event")}</Pill>}
             {daysLeft !== null && daysLeft < 0 && isComment && <Pill tone="urgent">Comment period closed</Pill>}

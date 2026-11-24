@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { BROWSE_PAGE_SIZE, browseItems, getFeed, getIndexCounts, getProfile, type BrowseRow } from "@/lib/data";
 import { feedStatus, type Feed, type FeedStatus } from "@/lib/relevance";
-import { TYPE_LABEL } from "@/components/ItemCard";
+import { typeLabel } from "@/components/ItemCard";
 import { TopicTile } from "@/components/TopicTile";
 import { RelevanceVote } from "@/components/RelevanceVote";
 import { Card, Empty, LEVEL_LABEL, LinkButton, PageTitle, Pill } from "@/components/ui";
@@ -142,7 +142,7 @@ function Row({ r, feed }: { r: BrowseRow; feed: Feed }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <Pill>{LEVEL_LABEL[item.level]}</Pill>
-          <Pill>{TYPE_LABEL[item.type] ?? item.type}</Pill>
+          <Pill>{typeLabel(item)}</Pill>
           <Pill tone={status.tone}>{status.label}</Pill>
         </div>
         <Link href={`/items/${item.id}`} className="mt-1.5 block font-medium leading-snug hover:text-accent">

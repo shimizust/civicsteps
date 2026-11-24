@@ -21,6 +21,9 @@ export const TYPE_LABEL: Record<string, string> = {
   opportunity: "Opportunity",
 };
 
+export const typeLabel = (item: { type: string; enacted_at?: string | null }) =>
+  item.enacted_at ? "Signed into law" : (TYPE_LABEL[item.type] ?? item.type);
+
 export function ItemCard({
   r,
   reps = [],
@@ -70,7 +73,7 @@ export function ItemCard({
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <Pill>{LEVEL_LABEL[item.level]}</Pill>
-            <Pill>{TYPE_LABEL[item.type] ?? item.type}</Pill>
+            <Pill>{typeLabel(item)}</Pill>
             {label && (
               <Pill tone={urgent ? "urgent" : "accent"}>
                 <Clock className="h-3 w-3" aria-hidden />
