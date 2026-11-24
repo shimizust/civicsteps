@@ -240,7 +240,7 @@ export type DemographicQuestion = { key: keyof Demographics; label: string; ask:
 
 export const DEMOGRAPHIC_QUESTIONS: DemographicQuestion[] = [
   { key: "housing", label: "Do you rent or own your home?", ask: "Do you rent or own your home?", kind: "choice", options: [["rent", "Rent"], ["own", "Own"], ["other", "Other"]] },
-  { key: "income", label: "Household income", ask: "Roughly, what's your household income?", kind: "choice", options: [["low", "Lower"], ["middle", "Middle"], ["high", "Higher"]] },
+  { key: "income", label: "Household income", ask: "Roughly, what's your household income?", kind: "choice", options: [["low", "Under $50k"], ["middle", "$50k–$150k"], ["high", "Over $150k"]] },
   { key: "age", label: "Age", ask: "How old are you?", kind: "choice", options: [["18-24", "18–24"], ["25-44", "25–44"], ["45-64", "45–64"], ["65+", "65+"]] },
   { key: "area", label: "Where you live", ask: "Is where you live urban, suburban or rural?", kind: "choice", options: [["urban", "Urban"], ["suburban", "Suburban"], ["rural", "Rural"]] },
   { key: "commute", label: "How you mostly get around", ask: "How do you mostly get around?", kind: "choice", options: [["transit", "Transit"], ["drive", "Drive"], ["bike-walk", "Bike / walk"], ["remote", "Work from home"]] },
