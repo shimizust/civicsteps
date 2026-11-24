@@ -16,7 +16,8 @@
     "ingest": "tsx --env-file-if-exists=.env.local ingest/run.ts",
     "gen:seed": "tsx scripts/gen-seed.ts",
     "gen:zcta": "tsx scripts/gen-zcta.ts",
-    "notify": "tsx --env-file-if-exists=.env.local ingest/notify.ts"
+    "notify": "tsx --env-file-if-exists=.env.local ingest/notify.ts",
+    "facts:report": "tsx --env-file-if-exists=.env.local scripts/fact-demand.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

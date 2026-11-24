@@ -1,7 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
-import { getItem, getMyOfficials, getUserContext } from "@/lib/data";
+import { factKeysOf, getItem, getMyOfficials, getRegistry, getUserContext } from "@/lib/data";
+import { aiConfigured } from "@/lib/ai/client";
+import { assessmentHash, type Assessment } from "@/lib/ai/assess";
+import { AssessPanel } from "@/components/AssessPanel";
+import { FactQuestion } from "@/components/FactQuestion";
 import { FACETS, topicName } from "@/lib/taxonomy";
 import { matchInterests, type FeedAnalysis } from "@/lib/relevance";
 import { hasDirection, personalImpact, unaffectedFacets, type PersonalImpact } from "@/lib/impact";
@@ -11,6 +15,7 @@ import { TYPE_LABEL } from "@/components/ItemCard";
 import type { ActionType } from "@/lib/gamification";
 import { ActionPanel, MarkRead } from "@/components/ActionPanel";
 import { OfficialCard } from "@/components/OfficialCard";
+import { RelevanceVote } from "@/components/RelevanceVote";
 import { Card, LEVEL_LABEL, LinkButton, Pill, SectionTitle, deadlineLabel } from "@/components/ui";
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,17 +23,41 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const { supabase, user } = await requireUser();
   if (!user) redirect(`/login?next=/items/${id}`);
 
-  const [item, mine, ctx, myActions] = await Promise.all([
+  const [item, mine, ctx, myActions, lastAssessment, myVote] = await Promise.all([
     getItem(supabase, id),
     getMyOfficials(supabase, user.id),
     getUserContext(supabase, user.id),
     supabase.from("user_actions").select("type").eq("user_id", user.id).eq("item_id", id),
+    supabase
+      .from("personal_assessments")
+      .select("result, facts_hash")
+      .eq("user_id", user.id)
+      .eq("item_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("item_feedback").select("relevant").eq("user_id", user.id).eq("item_id", id).maybeSingle(),
   ]);
   if (!item) notFound();
   const a = item.item_analysis;
   const analysis = a as unknown as FeedAnalysis | null;
   const matches = analysis ? matchInterests({ item, analysis }, ctx.interests) : [];
-  const impact = personalImpact(analysis?.impacts, { groups: ctx.groups, matched: matches.map((m) => m.interest) });
+  const registry = await getRegistry(supabase, factKeysOf(analysis?.impacts));
+  const impact = personalImpact(analysis?.impacts, {
+    groups: ctx.groups,
+    matched: matches.map((m) => m.interest),
+    demographics: ctx.demographics,
+    answers: ctx.answers,
+    registry,
+  });
+  const currentHash = assessmentHash({
+    demographics: ctx.demographics,
+    answers: ctx.answers,
+    analysisVersion: `${a?.prompt_version ?? "none"}:${a?.created_at ?? ""}`,
+  });
+  const saved = (lastAssessment.data?.result ?? null) as Assessment | null;
+  // Follow-ups answered since this assessment ran don't need asking again.
+  const assessment = saved && { ...saved, follow_ups: saved.follow_ups.filter((f) => !(f.key in ctx.answers)) };
   const isPet = matches.some((m) => m.interest.is_pet);
   const headline = a?.headline?.trim() || null;
 
@@ -67,7 +96,18 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <Scorecard impact={impact} heuristic={a?.model === "heuristic"} />
+      <Card className="mt-6 flex flex-wrap items-center justify-between gap-3 !py-3">
+        <div>
+          <p className="text-sm font-medium">Is this relevant to you?</p>
+          <p className="text-xs text-muted">Your answer tunes your feed, for this item and ones like it.</p>
+        </div>
+        <RelevanceVote itemId={item.id} current={myVote.data?.relevant ?? null} source="item" size="md" />
+      </Card>
+
+      <Scorecard impact={impact} heuristic={a?.model === "heuristic"} itemId={item.id} />
+      {aiConfigured() && a && a.model !== "heuristic" && (
+        <AssessPanel itemId={item.id} initial={assessment} initialHash={lastAssessment.data?.facts_hash ?? null} currentHash={currentHash} />
+      )}
 
       <Card className="mt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">In plain English</h2>
@@ -137,7 +177,7 @@ function Args({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function Scorecard({ impact, heuristic }: { impact: PersonalImpact; heuristic: boolean }) {
+function Scorecard({ impact, heuristic, itemId }: { impact: PersonalImpact; heuristic: boolean; itemId: string }) {
   if (!impact.facets.length) return null;
   const showDir = hasDirection(impact);
   const rest = unaffectedFacets(impact);
@@ -152,6 +192,16 @@ function Scorecard({ impact, heuristic }: { impact: PersonalImpact; heuristic: b
       </ul>
       {rest.length > 0 && (
         <p className="mt-2 text-xs text-muted">Little or no direct effect on: {rest.map((f) => FACETS[f].label).join(", ")}.</p>
+      )}
+      {impact.open.length > 0 && (
+        <div className="mt-4 rounded-lg bg-paper px-3 pt-2">
+          <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted">Tell us more to personalize this</p>
+          <div className="divide-y divide-line">
+            {impact.open.slice(0, 3).map((q) => (
+              <FactQuestion key={`${q.kind}:${q.key}`} q={q} source="item" itemId={itemId} />
+            ))}
+          </div>
+        </div>
       )}
       <p className="mt-3 text-xs text-muted">
         {heuristic

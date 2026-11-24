@@ -229,6 +229,78 @@ export function groupsForDemographics(d: Demographics): AffectedGroup[] {
   return [...g];
 }
 
+/**
+ * The onboarding "About you" questions. Every one is optional; a skipped one is asked again later, one at a time,
+ * when an item in the user's feed depends on it (see GROUP_DEMOGRAPHIC and lib/impact.ts).
+ */
+export type DemographicQuestion = { key: keyof Demographics; label: string; ask: string } & (
+  | { kind: "choice"; options: [string, string][] }
+  | { kind: "bool" }
+);
+
+export const DEMOGRAPHIC_QUESTIONS: DemographicQuestion[] = [
+  { key: "housing", label: "Do you rent or own your home?", ask: "Do you rent or own your home?", kind: "choice", options: [["rent", "Rent"], ["own", "Own"], ["other", "Other"]] },
+  { key: "income", label: "Household income", ask: "Roughly, what's your household income?", kind: "choice", options: [["low", "Lower"], ["middle", "Middle"], ["high", "Higher"]] },
+  { key: "age", label: "Age", ask: "How old are you?", kind: "choice", options: [["18-24", "18–24"], ["25-44", "25–44"], ["45-64", "45–64"], ["65+", "65+"]] },
+  { key: "area", label: "Where you live", ask: "Is where you live urban, suburban or rural?", kind: "choice", options: [["urban", "Urban"], ["suburban", "Suburban"], ["rural", "Rural"]] },
+  { key: "commute", label: "How you mostly get around", ask: "How do you mostly get around?", kind: "choice", options: [["transit", "Transit"], ["drive", "Drive"], ["bike-walk", "Bike / walk"], ["remote", "Work from home"]] },
+  { key: "coverage", label: "Health coverage", ask: "Where does your health coverage come from?", kind: "choice", options: [["employer", "Employer"], ["marketplace", "Marketplace"], ["medicare", "Medicare"], ["medicaid", "Medicaid"], ["uninsured", "Uninsured"]] },
+  { key: "work", label: "Work", ask: "What kind of work do you do?", kind: "choice", options: [["hourly", "Hourly"], ["small-business", "Small business owner"], ["healthcare", "Healthcare"], ["teacher", "Education"], ["tech", "Tech"], ["farm", "Farming / ranching"], ["union", "Union member"], ["other", "Other"]] },
+  { key: "student", label: "Student", ask: "Are you a student?", kind: "bool" },
+  { key: "parent", label: "Parent or guardian", ask: "Are you a parent or guardian?", kind: "bool" },
+  { key: "veteran", label: "Veteran", ask: "Are you a veteran?", kind: "bool" },
+  { key: "disability", label: "Living with a disability", ask: "Are you living with a disability?", kind: "bool" },
+  { key: "immigrant", label: "Immigrant", ask: "Are you an immigrant?", kind: "bool" },
+  { key: "outdoors", label: "Spend a lot of time outdoors (hiking, climbing, fishing…)", ask: "Do you spend a lot of time outdoors (hiking, climbing, fishing…)?", kind: "bool" },
+];
+
+/**
+ * Which onboarding question decides whether the user is in a group. Disability and immigration status are
+ * deliberately absent: we only learn those if the user volunteers them in onboarding, never by prompting later.
+ */
+export const GROUP_DEMOGRAPHIC: Partial<Record<AffectedGroup, keyof Demographics>> = {
+  renters: "housing",
+  homeowners: "housing",
+  "low-income": "income",
+  "middle-income": "income",
+  "high-income": "income",
+  students: "student",
+  parents: "parent",
+  seniors: "age",
+  veterans: "veteran",
+  "small-business-owners": "work",
+  "hourly-workers": "work",
+  "union-members": "work",
+  "healthcare-workers": "work",
+  teachers: "work",
+  "tech-workers": "work",
+  farmers: "work",
+  "rural-residents": "area",
+  "urban-residents": "area",
+  "outdoor-recreationists": "outdoors",
+  "transit-riders": "commute",
+  drivers: "commute",
+  "medicare-beneficiaries": "coverage",
+  "medicaid-beneficiaries": "coverage",
+  uninsured: "coverage",
+};
+
+/** Keeps only known keys with allowed values. Bool answers may arrive as "yes"/"no". */
+export function cleanDemographics(input: Record<string, unknown>): Demographics {
+  const out: Record<string, string | boolean> = {};
+  for (const q of DEMOGRAPHIC_QUESTIONS) {
+    const v = input[q.key];
+    if (v === undefined || v === null) continue;
+    if (q.kind === "bool") {
+      if (typeof v === "boolean") out[q.key] = v;
+      else if (v === "yes" || v === "no") out[q.key] = v === "yes";
+    } else if (typeof v === "string" && q.options.some(([o]) => o === v)) {
+      out[q.key] = v;
+    }
+  }
+  return out as Demographics;
+}
+
 // ---------------------------------------------------------------- life facets ("how this affects you")
 
 /** Fixed areas of life an item can touch. The AI scores each item once; personalization is plain TS (lib/impact.ts). */

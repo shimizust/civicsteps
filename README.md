@@ -5,6 +5,7 @@ Know what's being decided that affects you, from city hall to Congress, and make
 Users enter their ZIP code, a few optional facts about themselves, the topics they follow and their **pet issues** (for example "climbing access in national parks"). CivicSteps then:
 
 - builds a feed of bills, city council agenda items and federal public comment periods that affect them, ranked by relevance and deadline
+- estimates how each item would affect them ("likely costs you: raises BART fares"), asking one quick question only when an item depends on something it doesn't know yet ("Do you ride BART?") and remembering the answer for later items
 - lists their city, state and federal representatives, with contact info and recent sponsorships
 - drafts emails, call scripts and public comments in the user's own voice, or hands them a prompt to paste into any AI assistant
 - awards points, badges and weekly streaks for participation (never for taking a side)
@@ -19,9 +20,11 @@ AI cost grows with the number of **items**, not users:
 | Work | Runs | Model |
 |---|---|---|
 | Summarize and tag each bill or rule against a fixed topic taxonomy | Once per item, nightly, via the Message Batches API (50% off) | `claude-haiku-5-5`; `claude-sonnet-5-5` for significant or pet-issue items |
-| Match items to users | Every page view | **No LLM.** SQL prefilter (`feed_candidates`) plus `lib/relevance.ts` |
+| Match items to users, and personalize "how this affects you" | Every page view | **No LLM.** SQL prefilter (`feed_candidates`), `lib/relevance.ts` and `lib/impact.ts` match per-item impact rules to the user's answers |
+| Learn new facts to ask about ("Do you ride BART?") | Minted during per-item analysis, reusing existing facts; one small call per run merges near-duplicates (`ingest/consolidateFacts.ts`) | `claude-haiku-5-5` |
 | Map a free-text pet issue to topics and keywords | Once when saved | `claude-haiku-5-5` |
 | Draft a message | On request, capped per user per day | `claude-sonnet-5-5` |
+| "Ask about my situation" (personal assessment of one item) | On request, capped per user per day, cached until the user's answers change | `claude-sonnet-5-5` |
 
 Without `ANTHROPIC_API_KEY` everything still works: items are tagged with keyword rules (`lib/ai/heuristic.ts`), and drafting becomes "copy this prompt to your own AI". The nightly job logs its estimated token cost.
 
@@ -60,7 +63,13 @@ npm run ingest -- --only=federalregister,analyze --limit=20 --wait   # --wait po
 npm run notify -- --digest                       # emails (logs instead of sending without RESEND_API_KEY)
 npm run gen:seed && npm run db:reset             # after editing lib/taxonomy.ts, badges or legistar.config.ts
 npm run db:types                                 # regenerate DB types after a migration
+npm run facts:report                             # which learned facts come up most (candidates for onboarding)
+npm run ingest -- --only=openstates,legistar,analyze --new-areas-only --wait   # backfill states new users just joined from
 ```
+
+### New areas are ingested on demand
+
+State bills are only fetched for states where users live, and council items for cities in `ingest/legistar.config.ts`. The first time a state or city is ingested, it gets a 45-day backfill (state bills with a legislative action in that window, council items changed in it), recorded in `ingest_coverage`; after that it gets the normal nightly lookback. When a user saves a ZIP in an area that isn't covered yet, the app dispatches `.github/workflows/backfill.yml` (if `INGEST_DISPATCH_TOKEN` and `INGEST_DISPATCH_REPO` are set), so local items show up within the hour. Without those variables, the next `npm run ingest` (or nightly run) picks it up.
 
 ### Adding your city
 
@@ -71,6 +80,7 @@ If your city publishes council agendas on Legistar (`<city>.legistar.com`), add 
 1. Create a Supabase project and run the migrations (`npx supabase link && npx supabase db push`), then load `supabase/seed.sql`. In Auth settings, set the Site URL and add `<your-site>/auth/callback` as a redirect URL.
 2. Deploy the Next.js app (for example on Vercel) with the variables from `.env.example`.
 3. Add the same secrets to GitHub (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `API_DATA_GOV_KEY`, `OPENSTATES_API_KEY`, `RESEND_API_KEY`) and the variables `SITE_URL` and `EMAIL_FROM`. `.github/workflows/ingest.yml` then runs ingestion and email alerts nightly.
+4. Optional: to backfill a new user's state immediately, create a fine-grained GitHub token with "Actions: write" on the repo and set `INGEST_DISPATCH_TOKEN` and `INGEST_DISPATCH_REPO` on the app.
 
 ## Layout
 
@@ -88,5 +98,6 @@ supabase/         schema, RLS policies, generated seed
 
 - We only ask for a ZIP code, never a street address. It is stored for the user only (row-level security) and is never sent to an AI. Districts are looked up from a point inside the ZIP, so the ZIP itself never leaves the server. Drafts include only city and state.
 - A ZIP can cross district lines; we use the Census interior point of the ZIP, so users near a boundary may be matched to a neighboring district.
-- Profile questions are optional broad ranges.
+- Profile questions are optional broad ranges. Follow-up questions ("Do you ride BART?") are optional too, with "Prefer not to say", and every answer can be changed or forgotten on the profile page. We never prompt for immigration status, health conditions, religion, sexuality or politics.
+- Answers are matched to items in plain code; they are not sent to an AI. The one exception is "Ask about my situation", which the user starts explicitly: it sends their profile answers and city/state (never the ZIP code, name or email) to Claude.
 - Points and badges are written server-side only.

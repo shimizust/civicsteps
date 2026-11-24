@@ -1,0 +1,26 @@
+name: Backfill new areas
+# Dispatched by the app (lib/coverage.ts) when a user saves a ZIP in a state we haven't ingested yet.
+# Each run backfills every state still missing, so a dispatch that gets superseded in the queue loses nothing.
+on:
+  workflow_dispatch:
+
+concurrency: backfill
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENSTATES_API_KEY: ${{ secrets.OPENSTATES_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # --wait so the new bills are analyzed (and show in feeds) in this run rather than tomorrow night's.
+      - run: npm run ingest -- --only=openstates,legistar,analyze --new-areas-only --wait

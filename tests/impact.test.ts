@@ -65,16 +65,16 @@ describe("personalImpact", () => {
 describe("normalizeImpacts", () => {
   it("dedupes facets, clamps magnitude, caps count and keeps rights neutral", () => {
     const raw: Impact[] = [
-      { facet: "wallet", magnitude: 7, direction: "cost", groups: ["renters", "renters", "aliens" as never], note: " Adds a fee " },
-      { facet: "wallet", magnitude: 1, direction: "benefit", groups: [], note: "dupe" },
-      { facet: "rights", magnitude: 2, direction: "benefit", groups: [], note: "x" },
-      { facet: "health", magnitude: 0, direction: "mixed", groups: [], note: "" },
-      { facet: "home", magnitude: 1, direction: "mixed", groups: [], note: "" },
-      { facet: "work", magnitude: 1, direction: "mixed", groups: [], note: "" },
+      { facet: "wallet", magnitude: 7, direction: "cost", groups: ["renters", "renters", "aliens" as never], note: " Adds a fee ", applies_if: null },
+      { facet: "wallet", magnitude: 1, direction: "benefit", groups: [], note: "dupe", applies_if: null },
+      { facet: "rights", magnitude: 2, direction: "benefit", groups: [], note: "x", applies_if: null },
+      { facet: "health", magnitude: 0, direction: "mixed", groups: [], note: "", applies_if: null },
+      { facet: "home", magnitude: 1, direction: "mixed", groups: [], note: "", applies_if: null },
+      { facet: "work", magnitude: 1, direction: "mixed", groups: [], note: "", applies_if: null },
     ];
     const out = normalizeImpacts(raw);
     expect(out).toHaveLength(4);
-    expect(out[0]).toEqual({ facet: "wallet", magnitude: 3, direction: "cost", groups: ["renters"], note: "Adds a fee" });
+    expect(out[0]).toEqual({ facet: "wallet", magnitude: 3, direction: "cost", groups: ["renters"], note: "Adds a fee", applies_if: null });
     expect(out[1].direction).toBe("mixed");
     expect(out[2].magnitude).toBe(1);
   });

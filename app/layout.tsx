@@ -29,6 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {user ? (
               <>
                 <NavLink href="/feed">Feed</NavLink>
+                <NavLink href="/browse">Browse</NavLink>
                 <NavLink href="/reps">My reps</NavLink>
                 <NavLink href="/profile">Profile</NavLink>
               </>
