@@ -23,4 +23,4 @@ jobs:
           cache: npm
       - run: npm ci
       # --wait so the new bills are analyzed (and show in feeds) in this run rather than tomorrow night's.
-      - run: npm run ingest -- --only=openstates,legistar,analyze --new-areas-only --wait
+      - run: npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only --wait

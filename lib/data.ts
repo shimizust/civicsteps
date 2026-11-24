@@ -6,6 +6,10 @@ import { groupsForDemographics, type Demographics } from "@/lib/taxonomy";
 import type { Answers, Fact, Registry } from "@/lib/facts";
 import type { ImpactInput } from "@/lib/impact";
 import { levelForPoints, weeklyStreak, VOICE_ACTIONS, type ActionType } from "@/lib/gamification";
+import { nearest, type Point } from "@/lib/locations";
+
+/** The nearest site an item names, for the "1.2 mi from you" chip. */
+export type Place = { address: string; miles: number; count: number };
 
 type DB = SupabaseClient<Database>;
 
@@ -83,6 +87,22 @@ export async function getVotes(db: DB, userId: string) {
   return { votes, affinity };
 }
 
+/** For each item that names street addresses, the one nearest the user's ZIP and how far it is. */
+export async function nearestPlaces(db: DB, home: Point | null, itemIds: string[]): Promise<Record<string, Place>> {
+  const out: Record<string, Place> = {};
+  if (!home || !itemIds.length) return out;
+  const byItem = new Map<string, { address: string; lat: number; lng: number }[]>();
+  for (let i = 0; i < itemIds.length; i += 100) {
+    const { data } = await db.from("item_locations").select("item_id, address, lat, lng").in("item_id", itemIds.slice(i, i + 100));
+    for (const l of data ?? []) byItem.set(l.item_id, [...(byItem.get(l.item_id) ?? []), l]);
+  }
+  for (const [id, places] of byItem) {
+    const n = nearest(home, places);
+    if (n) out[id] = { address: n.address, miles: n.miles, count: places.length };
+  }
+  return out;
+}
+
 export async function getFeed(db: DB, userId: string) {
   const [{ profile, interests, groups, demographics, answers }, candidatesRes, actionsRes, { votes, affinity }] = await Promise.all([
     getUserContext(db, userId),
@@ -96,7 +116,7 @@ export async function getFeed(db: DB, userId: string) {
   );
   const candidates = (candidatesRes.data ?? []) as unknown as Candidate[];
   const registry = await getRegistry(db, candidates.flatMap((c) => factKeysOf(c.analysis.impacts)));
-  return buildFeed(candidates, {
+  const feed = buildFeed(candidates, {
     interests,
     groups,
     demographics,
@@ -108,6 +128,9 @@ export async function getFeed(db: DB, userId: string) {
     affinity,
     now: new Date(),
   });
+  const home = profile?.lat != null && profile?.lng != null ? { lat: profile.lat, lng: profile.lng } : null;
+  const shown = [...feed.actNow, ...feed.yourReps, ...feed.radar].map((r) => r.item.id);
+  return { ...feed, places: await nearestPlaces(db, home, shown) };
 }
 
 /** How much is indexed, and how much of it is in the user's area and still active. */
@@ -170,7 +193,7 @@ export async function getMyOfficials(db: DB, userId: string) {
 export async function getItem(db: DB, id: string) {
   const { data } = await db
     .from("items")
-    .select("*, item_analysis(*), item_officials(role, vote, officials(*))")
+    .select("*, item_analysis(*), item_officials(role, vote, officials(*)), item_locations(address, lat, lng)")
     .eq("id", id)
     .maybeSingle();
   return data;

@@ -38,6 +38,8 @@ Without `ANTHROPIC_API_KEY` everything still works: items are tagged with keywor
 | Federal comment periods | [Federal Register API](https://www.federalregister.gov/developers) | none |
 | State legislators and bills | [Open States](https://open.pluralpolicy.com/) | free key |
 | City council | [Legistar Web API](https://webapi.legistar.com/) for cities in `ingest/legistar.config.ts` | none |
+| Where city items are | Street addresses in the item text, geocoded with the [US Census Geocoder](https://geocoding.geo.census.gov/) (`ingest/locate.ts`) | none |
+| Map tiles | [OpenStreetMap](https://www.openstreetmap.org/) (configurable via `NEXT_PUBLIC_MAP_TILES_URL`) | none |
 
 ## Local development
 
@@ -64,7 +66,7 @@ npm run notify -- --digest                       # emails (logs instead of sendi
 npm run gen:seed && npm run db:reset             # after editing lib/taxonomy.ts, badges or legistar.config.ts
 npm run db:types                                 # regenerate DB types after a migration
 npm run facts:report                             # which learned facts come up most (candidates for onboarding)
-npm run ingest -- --only=openstates,legistar,analyze --new-areas-only --wait   # backfill states new users just joined from
+npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only --wait   # backfill states new users just joined from
 ```
 
 ### New areas are ingested on demand
@@ -99,5 +101,6 @@ supabase/         schema, RLS policies, generated seed
 - We only ask for a ZIP code, never a street address. It is stored for the user only (row-level security) and is never sent to an AI. Districts are looked up from a point inside the ZIP, so the ZIP itself never leaves the server. Drafts include only city and state.
 - A ZIP can cross district lines; we use the Census interior point of the ZIP, so users near a boundary may be matched to a neighboring district.
 - Profile questions are optional broad ranges. Follow-up questions ("Do you ride BART?") are optional too, with "Prefer not to say", and every answer can be changed or forgotten on the profile page. We never prompt for immigration status, health conditions, religion, sexuality or politics.
+- Item maps show the user's ZIP as an approximate area around its middle, never a point. Map tiles load from OpenStreetMap (or the configured provider) in the user's browser, so that provider sees which area is being viewed, as with any web map.
 - Answers are matched to items in plain code; they are not sent to an AI. The one exception is "Ask about my situation", which the user starts explicitly: it sends their profile answers and city/state (never the ZIP code, name or email) to Claude.
 - Points and badges are written server-side only.

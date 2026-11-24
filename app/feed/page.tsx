@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
-import { getFeed, getIndexCounts, getMyOfficials, getProfile, getStats, pendingAreas } from "@/lib/data";
+import { getFeed, getIndexCounts, getMyOfficials, getProfile, getStats, pendingAreas, type Place } from "@/lib/data";
 import { areasFor } from "@/lib/coverage";
 import { ItemCard } from "@/components/ItemCard";
 import { Card, Empty, LinkButton, PageTitle, SectionTitle } from "@/components/ui";
@@ -57,18 +57,18 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
       <QuickQuestions questions={feed.questions} />
 
       <SectionTitle hint="Deadlines in the next 2 weeks">Act now</SectionTitle>
-      {actNow.length ? <List items={actNow} repsFor={repsFor} hero /> : <Empty>No deadlines coming up on your issues. We&apos;ll email you when one opens.</Empty>}
+      {actNow.length ? <List items={actNow} repsFor={repsFor} places={feed.places} hero /> : <Empty>No deadlines coming up on your issues. We&apos;ll email you when one opens.</Empty>}
 
       {yourReps.length > 0 && (
         <>
           <SectionTitle hint="Bills your representatives are sponsoring or voting on">Your reps are involved</SectionTitle>
-          <List items={yourReps} repsFor={repsFor} />
+          <List items={yourReps} repsFor={repsFor} places={feed.places} />
         </>
       )}
 
       <SectionTitle>On your radar</SectionTitle>
       {radar.length ? (
-        <List items={radar} repsFor={repsFor} />
+        <List items={radar} repsFor={repsFor} places={feed.places} />
       ) : (
         <Empty>
           Nothing else matches yet. Try following more topics or adding a pet issue.{" "}
@@ -91,7 +91,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 type RepsFor = (r: Ranked) => Awaited<ReturnType<typeof getMyOfficials>>;
 
 /** Cards in a 2-column grid on wider screens; `hero` makes the first (most urgent) one full-width and larger. */
-function List({ items, repsFor, hero }: { items: Ranked[]; repsFor: RepsFor; hero?: boolean }) {
+function List({ items, repsFor, places, hero }: { items: Ranked[]; repsFor: RepsFor; places: Record<string, Place>; hero?: boolean }) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2">
       {items.map((r, i) => {
@@ -99,7 +99,7 @@ function List({ items, repsFor, hero }: { items: Ranked[]; repsFor: RepsFor; her
         return (
           <li key={r.item.id} className={big ? "flex flex-col gap-1.5 sm:col-span-2" : "flex flex-col gap-1.5"}>
             <div className="flex-1">
-              <ItemCard r={r} reps={repsFor(r)} variant={big ? "hero" : "default"} />
+              <ItemCard r={r} reps={repsFor(r)} variant={big ? "hero" : "default"} place={places[r.item.id]} />
             </div>
             <div className="flex justify-end">
               <RelevanceVote itemId={r.item.id} current={r.vote} source="feed" />

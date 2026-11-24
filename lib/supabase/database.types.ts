@@ -157,6 +157,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"item_locations": {
+                  Row: {
+                    "address": string,"item_id": string,"lat": number,"lng": number,"matched_address": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "address": string,"item_id": string,"lat": number,"lng": number,"matched_address"?: string | null
+                  }
+                  Update: {
+                    "address"?: string,"item_id"?: string,"lat"?: number,"lng"?: number,"matched_address"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "item_locations_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "items"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"item_officials": {
                   Row: {
                     "item_id": string,"official_id": string,"role": string,"vote": string | null
@@ -185,14 +205,14 @@ isOneToOne: false
                   ]
                 },"items": {
                   Row: {
-                    "action_url": string | null,"agency": string | null,"analysis_batch_id": string | null,"analysis_status": string,"comment_deadline": string | null,"content_hash": string,"created_at": string,"description": string | null,"event_at": string | null,"external_id": string,"id": string,"introduced_at": string | null,"jurisdiction_id": string | null,"last_action": string | null,"last_action_at": string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"source": string,"state": string | null,"status": string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at": string,"url": string | null
+                    "action_url": string | null,"agency": string | null,"analysis_batch_id": string | null,"analysis_status": string,"comment_deadline": string | null,"content_hash": string,"created_at": string,"description": string | null,"event_at": string | null,"external_id": string,"id": string,"introduced_at": string | null,"jurisdiction_id": string | null,"last_action": string | null,"last_action_at": string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"located_at": string | null,"source": string,"state": string | null,"status": string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at": string,"url": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash": string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id": string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"source": string,"state"?: string | null,"status"?: string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
+                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash": string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id": string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"located_at"?: string | null,"source": string,"state"?: string | null,"status"?: string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
                   }
                   Update: {
-                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash"?: string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id"?: string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level"?: Database["public"]['Enums']["jurisdiction_level"],"source"?: string,"state"?: string | null,"status"?: string | null,"title"?: string,"type"?: Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
+                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash"?: string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id"?: string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level"?: Database["public"]['Enums']["jurisdiction_level"],"located_at"?: string | null,"source"?: string,"state"?: string | null,"status"?: string | null,"title"?: string,"type"?: Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
                   }
                   Relationships: [
                     

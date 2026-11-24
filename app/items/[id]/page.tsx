@@ -16,6 +16,8 @@ import type { ActionType } from "@/lib/gamification";
 import { ActionPanel, MarkRead } from "@/components/ActionPanel";
 import { OfficialCard } from "@/components/OfficialCard";
 import { RelevanceVote } from "@/components/RelevanceVote";
+import { ItemMap } from "@/components/ItemMap";
+import { formatMiles, milesBetween } from "@/lib/locations";
 import { Card, LEVEL_LABEL, LinkButton, Pill, SectionTitle, deadlineLabel } from "@/components/ui";
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
@@ -103,6 +105,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         </div>
         <RelevanceVote itemId={item.id} current={myVote.data?.relevant ?? null} source="item" size="md" />
       </Card>
+
+      <Where places={item.item_locations} home={ctx.profile?.lat != null && ctx.profile?.lng != null ? { lat: ctx.profile.lat, lng: ctx.profile.lng } : null} zip={ctx.profile?.zip ?? null} />
 
       <Scorecard impact={impact} heuristic={a?.model === "heuristic"} itemId={item.id} />
       {aiConfigured() && a && a.model !== "heuristic" && (
@@ -207,6 +211,48 @@ function Scorecard({ impact, heuristic, itemId }: { impact: PersonalImpact; heur
         {heuristic
           ? "Rough estimate from topic tags. A detailed AI estimate is on the way."
           : "AI estimate based on the item text and your profile. \"Helps\" and \"costs\" describe concrete effects on the groups named, not whether the policy is good. Check the source before deciding."}
+      </p>
+    </Card>
+  );
+}
+
+/** The street addresses this item names, mapped against the user's ZIP. */
+function Where({
+  places,
+  home,
+  zip,
+}: {
+  places: { address: string; lat: number; lng: number }[];
+  home: { lat: number; lng: number } | null;
+  zip: string | null;
+}) {
+  if (!places.length) return null;
+  const sorted = places
+    .map((p) => ({ ...p, miles: home ? milesBetween(home, p) : null }))
+    .sort((x, y) => (x.miles ?? 0) - (y.miles ?? 0));
+  const closest = sorted[0].miles;
+  return (
+    <Card className="mt-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Where</h2>
+      {closest !== null && (
+        <p className="mt-2">
+          {places.length > 1 ? "The nearest site is " : "This site is "}
+          <strong>{formatMiles(closest)}</strong> from the middle of your ZIP code.
+        </p>
+      )}
+      <ul className="mt-2 space-y-0.5 text-sm text-muted">
+        {sorted.map((p) => (
+          <li key={p.address}>
+            {p.address}
+            {p.miles !== null && ` (${formatMiles(p.miles)})`}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4">
+        <ItemMap places={places} home={home} zip={zip} />
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        Addresses come from the item text. We only know your ZIP code, so distances are from its middle.
       </p>
     </Card>
   );

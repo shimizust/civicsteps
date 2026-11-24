@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { Check, ChevronRight, Clock } from "lucide-react";
+import { Check, ChevronRight, Clock, MapPin } from "lucide-react";
 import type { Ranked } from "@/lib/relevance";
 import { hasDirection } from "@/lib/impact";
 import type { Database } from "@/lib/supabase/database.types";
+import type { Place } from "@/lib/data";
+import { formatMiles } from "@/lib/locations";
 import { Card, LEVEL_LABEL, Pill, cx, deadlineLabel } from "@/components/ui";
 import { TopicTile } from "@/components/TopicTile";
 import { ImpactBadge, ImpactChip } from "@/components/ImpactMeter";
@@ -19,7 +21,17 @@ export const TYPE_LABEL: Record<string, string> = {
   opportunity: "Opportunity",
 };
 
-export function ItemCard({ r, reps = [], variant = "default" }: { r: Ranked; reps?: Official[]; variant?: "default" | "hero" | "compact" }) {
+export function ItemCard({
+  r,
+  reps = [],
+  variant = "default",
+  place,
+}: {
+  r: Ranked;
+  reps?: Official[];
+  variant?: "default" | "hero" | "compact";
+  place?: Place;
+}) {
   const { item, analysis, impact } = r;
   const headline = analysis.headline?.trim() || item.title;
   const showTitle = headline !== item.title;
@@ -64,6 +76,14 @@ export function ItemCard({ r, reps = [], variant = "default" }: { r: Ranked; rep
                 <Clock className="h-3 w-3" aria-hidden />
                 {label}
               </Pill>
+            )}
+            {place && (
+              <span title={`${place.address}, measured from the middle of your ZIP`}>
+                <Pill tone={place.miles < 1 ? "urgent" : "neutral"}>
+                  <MapPin className="h-3 w-3" aria-hidden />
+                  {formatMiles(place.miles)} from you
+                </Pill>
+              </span>
             )}
           </div>
 

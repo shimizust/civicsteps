@@ -4,14 +4,14 @@
  *   npm run ingest                         # everything
  *   npm run ingest -- --only=federalregister,analyze --limit=20 --wait
  *   npm run ingest -- --only=analyze --reanalyze --wait   # re-run active items analyzed by an older prompt
- *   npm run ingest -- --only=openstates,legistar,analyze --new-areas-only --wait   # just backfill new areas
+ *   npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only --wait   # just backfill new areas
  *
  * Areas are pulled in on demand: state bills only for states where users live, council items for cities in
  * legistar.config.ts. The first time a state or city is ingested it is backfilled (BACKFILL_DAYS of history)
  * and recorded in ingest_coverage; after that it gets the usual short lookback. Saving a ZIP in an area
  * that isn't covered yet triggers .github/workflows/backfill.yml (lib/coverage.ts).
  *
- * Steps: officials → items from each source → collect finished analysis batches
+ * Steps: officials → items from each source → map street addresses in city items → collect finished analysis batches
  *        → escalate important items to the writer model → submit new items for analysis.
  */
 import { createClient } from "@supabase/supabase-js";
@@ -22,6 +22,7 @@ import { collectAnalysisBatch, PROMPT_VERSION, submitAnalysisBatch, type Analyza
 import { HEURISTIC_VERSION, heuristicAnalysis } from "@/lib/ai/heuristic";
 import type { Fact, Registry } from "@/lib/facts";
 import { consolidateFacts } from "./consolidateFacts";
+import { locateItems } from "./locate";
 import { contentHash, type NormalizedItem } from "./normalize";
 import { fetchOpenCommentPeriods } from "./federalRegister";
 import { fetchBillDetail, fetchUpdatedBills, normalizeCongressBill } from "./congress";
@@ -103,7 +104,7 @@ async function upsertItems(items: NormalizedItem[]): Promise<number> {
     if (changed.length) {
       const { data, error } = await db
         .from("items")
-        .upsert(changed.map((r) => ({ ...r, analysis_status: "pending", analysis_batch_id: null })), { onConflict: "source,external_id" })
+        .upsert(changed.map((r) => ({ ...r, analysis_status: "pending", analysis_batch_id: null, located_at: null })), { onConflict: "source,external_id" })
         .select("id, source, external_id");
       if (error) throw error;
       results.push(...data);
@@ -447,6 +448,15 @@ async function main() {
   await ingestStates();
 
   await ingestCities();
+
+  if (should("locations")) {
+    try {
+      await locateItems(db, log, LIMIT);
+    } catch (err) {
+      console.error("locations failed:", err instanceof Error ? err.message : (err as { message?: string })?.message ?? err);
+      process.exitCode = 1;
+    }
+  }
 
   if (should("analyze")) {
     if (!aiConfigured()) {
