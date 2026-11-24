@@ -41,14 +41,22 @@ export function normalizeOpenStatesBill(b: OSBill, state: string): NormalizedIte
   };
 }
 
-export async function fetchStateBills(state: string, since: Date, maxPages = 5): Promise<NormalizedItem[]> {
+/**
+ * Bills changed since `since`. `by: "updated"` (nightly) catches any change to a bill's record;
+ * `by: "action"` (backfill) only bills with a legislative action since then, i.e. ones the feed would show.
+ */
+export async function fetchStateBills(
+  state: string,
+  since: Date,
+  { maxPages = 5, by = "updated" }: { maxPages?: number; by?: "updated" | "action" } = {},
+): Promise<NormalizedItem[]> {
   const key = process.env.OPENSTATES_API_KEY;
   if (!key) return [];
   const out: NormalizedItem[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const u = new URL("https://v3.openstates.org/bills");
     u.searchParams.set("jurisdiction", `ocd-jurisdiction/country:us/state:${state.toLowerCase()}/government`);
-    u.searchParams.set("updated_since", since.toISOString().slice(0, 10));
+    u.searchParams.set(by === "action" ? "action_since" : "updated_since", since.toISOString().slice(0, 10));
     u.searchParams.set("sort", "updated_desc");
     u.searchParams.set("per_page", "20");
     u.searchParams.set("page", String(page));

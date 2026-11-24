@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFeed, scoreCandidate, type Candidate, type UserContext } from "@/lib/relevance";
+import { affinityPoints, buildFeed, feedStatus, learnTopicAffinity, scoreCandidate, type Candidate, type UserContext } from "@/lib/relevance";
 
 const now = new Date("2026-11-20T12:00:00Z");
 const inDays = (n: number) => new Date(now.getTime() + n * 86_400_000).toISOString();
@@ -106,5 +106,109 @@ describe("buildFeed", () => {
     const boring = cand({ title: "Post office naming" }, { significance: 1 });
     const feed = buildFeed([boring], user);
     expect(feed.radar).toHaveLength(0);
+  });
+});
+
+describe("facts in the feed", () => {
+  const bart = {
+    key: "rides_bart",
+    question: "Do you ride BART?",
+    you_phrase: "you ride BART",
+    answer_type: "bool" as const,
+    options: [],
+    topics: ["transportation/transit"],
+    facets: ["mobility"],
+    canonical_key: null,
+  };
+  const fareItem = () =>
+    cand(
+      { title: "BART fare increase", level: "state", jurisdiction_id: null },
+      {
+        significance: 3,
+        impacts: [{ facet: "mobility", magnitude: 3, direction: "cost", groups: [], note: "Raises fares 10%", applies_if: { fact_key: "rides_bart", when: ["yes"] } }],
+      },
+    );
+  const plain: UserContext = { ...user, interests: [], groups: [], demographics: {}, registry: new Map([[bart.key, bart]]) };
+
+  it("a matching answer connects an item that otherwise wouldn't show, and says why", () => {
+    expect(scoreCandidate(fareItem(), { ...plain, answers: {} })).toBeNull();
+    const r = scoreCandidate(fareItem(), { ...plain, answers: { rides_bart: "yes" } })!;
+    expect(r.reasons).toContain("Affects you because you ride BART");
+    expect(r.impact.facets[0].viaFact).toBe(true);
+  });
+
+  it("asks about hidden items too, since answering is how they get in", () => {
+    const feed = buildFeed([fareItem()], { ...plain, answers: {} });
+    expect(feed.radar).toHaveLength(0);
+    expect(feed.questions).toEqual([expect.objectContaining({ key: "rides_bart", itemCount: 1 })]);
+    expect(buildFeed([fareItem()], { ...plain, answers: { rides_bart: "no" } }).questions).toEqual([]);
+  });
+});
+
+describe("relevance votes", () => {
+  const unrelated = () => cand({ id: "u1", title: "Postal Facility Naming Act" }, { topics: ["government/postal"], significance: 2 });
+
+  it("an item marked relevant shows even with no other connection, and says why", () => {
+    const c = unrelated();
+    expect(scoreCandidate(c, user)).toBeNull();
+    const r = scoreCandidate(c, { ...user, votes: new Map([["u1", true]]) })!;
+    expect(r.vote).toBe(true);
+    expect(r.reasons).toContain("You marked this relevant");
+    expect(buildFeed([c], { ...user, votes: new Map([["u1", true]]) }).radar.map((x) => x.item.id)).toEqual(["u1"]);
+  });
+
+  it("an item marked not relevant is dropped, even a pet-issue match, and isn't asked about", () => {
+    const pet = cand({ id: "p1", title: "Climbing fixed anchors rule" }, { topics: ["public-lands/climbing-access"] });
+    expect(scoreCandidate(pet, user)).not.toBeNull();
+    const u = { ...user, votes: new Map([["p1", false]]) };
+    expect(scoreCandidate(pet, u)).toBeNull();
+    const feed = buildFeed([pet], u);
+    expect(feed.rankedIds.size).toBe(0);
+    expect(feed.questions).toEqual([]);
+  });
+
+  it("learns a per-topic lean that cancels out on mixed votes", () => {
+    const a = learnTopicAffinity([
+      { relevant: true, topics: ["government/postal", "economy"] },
+      { relevant: true, topics: ["government/postal"] },
+      { relevant: false, topics: ["economy", "health"] },
+    ]);
+    expect(Object.fromEntries(a)).toEqual({ "government/postal": 2, health: -1 });
+    expect(affinityPoints(["government/postal"], a)).toBe(4);
+    expect(affinityPoints(["government/postal", "x"], a)).toBe(4);
+    expect(affinityPoints(["y"], new Map([["y", 9]]))).toBe(6); // capped
+  });
+
+  it("one rejection doesn't push down a whole topic; a pattern of them does", () => {
+    expect(affinityPoints(["health"], new Map([["health", -1]]))).toBe(0);
+    expect(affinityPoints(["health"], new Map([["health", -2]]))).toBe(-2);
+    expect(affinityPoints(["health", "economy"], new Map([["health", -3], ["economy", -3]]))).toBe(-4); // capped
+  });
+
+  it("items like ones marked relevant get pulled in; ones like rejected ones get pushed down", () => {
+    const similar = unrelated();
+    const affinity = new Map([["government/postal", 2]]);
+    const r = scoreCandidate(similar, { ...user, affinity })!;
+    expect(r.reasons).toContain("Similar to items you marked relevant");
+
+    const transit = cand({ id: "t1" }, { topics: ["transportation/transit"], significance: 3 });
+    const base = scoreCandidate(transit, user)!.score;
+    expect(scoreCandidate(transit, { ...user, affinity: new Map([["transportation/transit", -1]]) })!.score).toBe(base);
+    expect(scoreCandidate(transit, { ...user, affinity: new Map([["transportation/transit", -3]]) })!.score).toBe(base - 3);
+  });
+
+  it("explains why an indexed item is or isn't in the feed", () => {
+    const shown = cand({ id: "s1" }, { topics: ["transportation/transit"], significance: 5 });
+    const feed = buildFeed([shown], user);
+    const where = { inArea: true, active: true, vote: null };
+    expect(feedStatus("s1", where, feed)).toBe("in_feed");
+    expect(feedStatus("s1", { ...where, vote: false }, feed)).toBe("not_relevant");
+    expect(feedStatus("x", { ...where, inArea: false }, feed)).toBe("outside_area");
+    expect(feedStatus("x", { ...where, active: false }, feed)).toBe("inactive");
+    expect(feedStatus("x", where, feed)).toBe("no_match");
+
+    const many = Array.from({ length: 3 }, (_, i) => cand({ id: `m${i}` }, { topics: ["transportation/transit"], significance: 5 }));
+    const capped = buildFeed(many, user, 2);
+    expect(feedStatus("m2", where, capped)).toBe("ranked_lower");
   });
 });

@@ -81,9 +81,11 @@ on conflict (slug) do update set name = excluded.name, description = excluded.de
 
 insert into jurisdictions (id, level, name, state) values
   ('ocd-division/country:us', 'federal', 'United States', null),
-  ('ocd-division/country:us/state:wa/place:seattle', 'city', 'Seattle', 'WA')
+  ('ocd-division/country:us/state:wa/place:seattle', 'city', 'Seattle', 'WA'),
+  ('ocd-division/country:us/state:ca/place:sunnyvale', 'city', 'Sunnyvale', 'CA')
 on conflict (id) do nothing;
 
 insert into local_sources (id, jurisdiction_id, name) values
-  ('seattle', 'ocd-division/country:us/state:wa/place:seattle', 'Seattle')
+  ('seattle', 'ocd-division/country:us/state:wa/place:seattle', 'Seattle'),
+  ('sunnyvaleca', 'ocd-division/country:us/state:ca/place:sunnyvale', 'Sunnyvale')
 on conflict (id) do nothing;

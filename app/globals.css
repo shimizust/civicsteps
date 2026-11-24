@@ -56,3 +56,14 @@ body {
     color: oklch(0.86 0.1 var(--hue));
   }
 }
+
+/* Map tiles (components/ItemMap.tsx): darken the light OpenStreetMap tiles to sit in the dark theme. */
+.leaflet-container {
+  background: var(--color-paper);
+  font-family: var(--font-sans);
+}
+@media (prefers-color-scheme: dark) {
+  .map-tiles {
+    filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+  }
+}

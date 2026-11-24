@@ -1,14 +1,28 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
-import { getInterests, getProfile, getStats } from "@/lib/data";
+import { getAnswers, getInterests, getProfile, getRegistry, getStats } from "@/lib/data";
+import { factQuestion, PROFILE_PREFIX } from "@/lib/facts";
+import { DEMOGRAPHIC_QUESTIONS } from "@/lib/taxonomy";
+import { FactQuestion, ForgetAnswer } from "@/components/FactQuestion";
 import { POINTS } from "@/lib/gamification";
 import { Button, Card, PageTitle, Pill, SectionTitle, cx } from "@/components/ui";
 
 export default async function ProfilePage() {
   const { supabase, user } = await requireUser();
   if (!user) redirect("/login?next=/profile");
-  const [stats, profile, interests] = await Promise.all([getStats(supabase, user.id), getProfile(supabase, user.id), getInterests(supabase, user.id)]);
+  const [stats, profile, interests, answers] = await Promise.all([
+    getStats(supabase, user.id),
+    getProfile(supabase, user.id),
+    getInterests(supabase, user.id),
+    getAnswers(supabase, user.id),
+  ]);
+  const registry = await getRegistry(supabase, Object.keys(answers).filter((k) => !k.startsWith(PROFILE_PREFIX)));
+  const factAnswers = Object.entries(answers).flatMap(([key, value]) => {
+    const f = registry.get(key);
+    return f ? [{ f, value }] : [];
+  });
+  const declinedProfile = DEMOGRAPHIC_QUESTIONS.filter((q) => `${PROFILE_PREFIX}${q.key}` in answers);
   const { level } = stats;
   const pct = level.next ? Math.min(100, Math.round((stats.points / level.next) * 100)) : 100;
 
@@ -63,6 +77,33 @@ export default async function ProfilePage() {
         {interests.map((i) => <Pill key={i.id} tone={i.is_pet ? "pet" : "accent"}>{i.is_pet ? "★ " : ""}{i.label}</Pill>)}
         {!interests.length && <p className="text-sm text-muted">None yet.</p>}
       </div>
+
+      <SectionTitle hint={<Link className="text-accent" href="/onboarding?step=2">Edit profile answers</Link>}>Your answers</SectionTitle>
+      <Card>
+        <p className="text-sm text-muted">
+          Details you shared so we can tell how specific items affect you. They stay private to your account. Change or forget any of them; we&apos;ll ask again only if an item depends on it.
+        </p>
+        {factAnswers.length || declinedProfile.length ? (
+          <ul className="mt-2 divide-y divide-line">
+            {factAnswers.map(({ f, value }) => (
+              <li key={f.key} className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <FactQuestion q={factQuestion(f)} source="profile" current={value} />
+                </div>
+                <div className="pt-3"><ForgetAnswer factKey={f.key} /></div>
+              </li>
+            ))}
+            {declinedProfile.map((q) => (
+              <li key={q.key} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <span><span className="text-muted">Chose not to answer:</span> {q.ask}</span>
+                <ForgetAnswer factKey={`${PROFILE_PREFIX}${q.key}`} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-muted">Nothing yet. Questions show up on your feed and on items when an answer would change how something affects you.</p>
+        )}
+      </Card>
 
       <SectionTitle>Settings</SectionTitle>
       <Card className="space-y-2 text-sm">

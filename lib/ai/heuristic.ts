@@ -73,7 +73,7 @@ export function heuristicAnalysis(item: { title: string; description: string | n
     why_it_matters: "",
     topics,
     affected_groups: /\bparks?\b|\btrails?\b|\brecreation(al)?\b|\bclimb|\bwilderness\b|\bhunting\b/i.test(text) ? ["outdoor-recreationists"] : [],
-    impacts: facets.map((facet: Facet) => ({ facet, magnitude: 1, direction: "mixed" as const, groups: [], note: "" })),
+    impacts: facets.map((facet: Facet) => ({ facet, magnitude: 1, direction: "mixed" as const, groups: [], note: "", applies_if: null })),
     keywords: [],
     significance: ceremonial ? 1 : item.description ? 3 : 2,
     arguments_for: [],

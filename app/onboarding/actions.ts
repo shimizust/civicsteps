@@ -1,12 +1,12 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod/v4";
 import { requireUser } from "@/lib/supabase/server";
 import { geocodeZip } from "@/lib/civic/geocode";
 import { resolveOfficials } from "@/lib/civic/resolve";
+import { areasFor, requestAreaCoverage, type CoverageStatus } from "@/lib/coverage";
 import { mapInterest } from "@/lib/ai/mapInterest";
-import { TOPIC_SLUGS, type Demographics } from "@/lib/taxonomy";
+import { cleanDemographics, TOPIC_SLUGS, type Demographics } from "@/lib/taxonomy";
 
 async function me() {
   const { supabase, user } = await requireUser();
@@ -15,7 +15,14 @@ async function me() {
 }
 
 export type ZipResult =
-  | { ok: true; zip: string; summary: string[]; officials: number; stateLookup: "ok" | "skipped" | "failed" }
+  | {
+      ok: true;
+      zip: string;
+      summary: string[];
+      officials: number;
+      stateLookup: "ok" | "skipped" | "failed";
+      coverage: { status: CoverageStatus; pending: string[] };
+    }
   | { ok: false; error: string };
 
 export async function saveZip(input: string): Promise<ZipResult> {
@@ -37,7 +44,14 @@ export async function saveZip(input: string): Promise<ZipResult> {
   );
   if (error) return { ok: false, error: "Couldn't save your ZIP code." };
 
-  const { count, stateLookup } = await resolveOfficials(user.id, d);
+  // New state or city? Start pulling in its items now rather than leaving the feed empty until tonight's run.
+  const [{ count, stateLookup }, coverage] = await Promise.all([
+    resolveOfficials(user.id, d),
+    requestAreaCoverage(areasFor(d.state, d.jurisdictionIds)).catch((err) => {
+      console.error("coverage request failed", err);
+      return { status: "ready" as const, pending: [] };
+    }),
+  ]);
   const summary = [
     d.place && `City of ${d.place}`,
     d.county,
@@ -46,28 +60,14 @@ export async function saveZip(input: string): Promise<ZipResult> {
     d.sldl && `State house district ${d.sldl}`,
   ].filter((x): x is string => !!x);
   revalidatePath("/reps");
-  return { ok: true, zip: d.zip, summary, officials: count, stateLookup };
+  revalidatePath("/feed");
+  return { ok: true, zip: d.zip, summary, officials: count, stateLookup, coverage };
 }
 
-const DemographicsSchema = z.object({
-  housing: z.enum(["rent", "own", "other"]).optional(),
-  income: z.enum(["low", "middle", "high"]).optional(),
-  age: z.enum(["18-24", "25-44", "45-64", "65+"]).optional(),
-  student: z.boolean().optional(),
-  parent: z.boolean().optional(),
-  veteran: z.boolean().optional(),
-  disability: z.boolean().optional(),
-  immigrant: z.boolean().optional(),
-  area: z.enum(["urban", "suburban", "rural"]).optional(),
-  commute: z.enum(["transit", "drive", "bike-walk", "remote"]).optional(),
-  coverage: z.enum(["employer", "marketplace", "medicare", "medicaid", "uninsured"]).optional(),
-  work: z.enum(["hourly", "small-business", "healthcare", "teacher", "tech", "farm", "union", "other"]).optional(),
-  outdoors: z.boolean().optional(),
-});
 
 export async function saveDemographics(d: Demographics) {
   const { supabase, user } = await me();
-  const parsed = DemographicsSchema.parse(d);
+  const parsed = cleanDemographics(d);
   await supabase.from("profiles").upsert({ user_id: user.id, demographics: parsed }, { onConflict: "user_id" });
 }
 

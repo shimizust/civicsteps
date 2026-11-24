@@ -4,8 +4,14 @@
  *   npm run ingest                         # everything
  *   npm run ingest -- --only=federalregister,analyze --limit=20 --wait
  *   npm run ingest -- --only=analyze --reanalyze --wait   # re-run active items analyzed by an older prompt
+ *   npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only --wait   # just backfill new areas
  *
- * Steps: officials → items from each source → collect finished analysis batches
+ * Areas are pulled in on demand: state bills only for states where users live, council items for cities in
+ * legistar.config.ts. The first time a state or city is ingested it is backfilled (BACKFILL_DAYS of history)
+ * and recorded in ingest_coverage; after that it gets the usual short lookback. Saving a ZIP in an area
+ * that isn't covered yet triggers .github/workflows/backfill.yml (lib/coverage.ts).
+ *
+ * Steps: officials → items from each source → map street addresses in city items → collect finished analysis batches
  *        → escalate important items to the writer model → submit new items for analysis.
  */
 import { createClient } from "@supabase/supabase-js";
@@ -14,12 +20,15 @@ import { fetchFederalOfficials, type OfficialRow } from "@/lib/civic/officials";
 import { aiConfigured, FAST_MODEL, WRITER_MODEL } from "@/lib/ai/client";
 import { collectAnalysisBatch, PROMPT_VERSION, submitAnalysisBatch, type AnalyzableItem } from "@/lib/ai/analyze";
 import { HEURISTIC_VERSION, heuristicAnalysis } from "@/lib/ai/heuristic";
+import type { Fact, Registry } from "@/lib/facts";
+import { consolidateFacts } from "./consolidateFacts";
+import { locateItems } from "./locate";
 import { contentHash, type NormalizedItem } from "./normalize";
 import { fetchOpenCommentPeriods } from "./federalRegister";
 import { fetchBillDetail, fetchUpdatedBills, normalizeCongressBill } from "./congress";
 import { fetchStateBills } from "./openstates";
 import { fetchCityMatters, fetchCouncilMembers } from "./legistar";
-import { LOCAL_SOURCES } from "./legistar.config";
+import { citySourceScope, LOCAL_SOURCES, stateScope } from "./legistar.config";
 import { estimateCost, type UsageTotals } from "./cost";
 
 const args = Object.fromEntries(
@@ -33,7 +42,11 @@ const LIMIT = args.limit ? parseInt(args.limit, 10) : undefined;
 const SINCE_DAYS = parseFloat(args["since-days"] ?? "2");
 const WAIT = args.wait === "true";
 const REANALYZE = args.reanalyze === "true";
+const NEW_AREAS_ONLY = args["new-areas-only"] === "true";
 const since = new Date(Date.now() - SINCE_DAYS * 86_400_000);
+// A new state's first fetch reaches back as far as the feed shows inactive items (feed_candidates: 45 days).
+const BACKFILL_DAYS = 45;
+const BACKFILL_PAGES = 15; // × 20 bills, most recently updated first; Open States' free tier is ~10 req/min
 const should = (step: string) => !ONLY || ONLY.has(step);
 
 const db = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -42,6 +55,17 @@ const db = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process
 
 const log = (...m: unknown[]) => console.log(`[ingest ${new Date().toISOString().slice(11, 19)}]`, ...m);
 const chunk = <T,>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
+
+/**
+ * Updates items by id. Ids go in the URL's query string, and a few hundred uuids overflow it ("URI too long"),
+ * so this goes 100 at a time and throws rather than silently leaving items in the wrong state.
+ */
+async function updateItems(patch: Database["public"]["Tables"]["items"]["Update"], ids: string[]) {
+  for (const c of chunk(ids, 100)) {
+    const { error } = await db.from("items").update(patch).in("id", c);
+    if (error) throw error;
+  }
+}
 
 async function upsertOfficials(rows: OfficialRow[]) {
   for (const c of chunk(rows, 500)) {
@@ -59,13 +83,17 @@ async function upsertItems(items: NormalizedItem[]): Promise<number> {
 
   for (const c of chunk(unique, 500)) {
     const source = c[0].source;
-    const { data: existing, error: exErr } = await db
-      .from("items")
-      .select("external_id, content_hash")
-      .eq("source", source)
-      .in("external_id", c.map((i) => i.external_id));
-    if (exErr) throw exErr;
-    const prev = new Map(existing.map((e) => [e.external_id, e.content_hash]));
+    // Ids go in the query string; Open States ids are ~50 chars, so look them up 100 at a time.
+    const prev = new Map<string, string>();
+    for (const ids of chunk(c.map((i) => i.external_id), 100)) {
+      const { data: existing, error: exErr } = await db
+        .from("items")
+        .select("external_id, content_hash")
+        .eq("source", source)
+        .in("external_id", ids);
+      if (exErr) throw exErr;
+      for (const e of existing) prev.set(e.external_id, e.content_hash);
+    }
 
     const rows = c.map(({ officials: _officials, ...rest }) => ({ ...rest, content_hash: contentHash(rest) }));
     const changed = rows.filter((r) => prev.get(r.external_id) !== r.content_hash);
@@ -76,7 +104,7 @@ async function upsertItems(items: NormalizedItem[]): Promise<number> {
     if (changed.length) {
       const { data, error } = await db
         .from("items")
-        .upsert(changed.map((r) => ({ ...r, analysis_status: "pending", analysis_batch_id: null })), { onConflict: "source,external_id" })
+        .upsert(changed.map((r) => ({ ...r, analysis_status: "pending", analysis_batch_id: null, located_at: null })), { onConflict: "source,external_id" })
         .select("id, source, external_id");
       if (error) throw error;
       results.push(...data);
@@ -94,8 +122,11 @@ async function upsertItems(items: NormalizedItem[]): Promise<number> {
     const idByExt = new Map(results.map((r) => [r.external_id, r.id]));
     const links = c.flatMap((i) => (i.officials ?? []).map((o) => ({ item_id: idByExt.get(i.external_id)!, ...o })));
     if (links.length) {
-      const { data: known } = await db.from("officials").select("id").in("id", [...new Set(links.map((l) => l.official_id))]);
-      const knownIds = new Set((known ?? []).map((k) => k.id));
+      const knownIds = new Set<string>();
+      for (const ids of chunk([...new Set(links.map((l) => l.official_id))], 100)) {
+        const { data: known } = await db.from("officials").select("id").in("id", ids);
+        for (const k of known ?? []) knownIds.add(k.id);
+      }
       const valid = links.filter((l) => l.item_id && knownIds.has(l.official_id));
       if (valid.length) {
         const { error } = await db.from("item_officials").upsert(valid, { onConflict: "item_id,official_id,role", ignoreDuplicates: true });
@@ -106,23 +137,126 @@ async function upsertItems(items: NormalizedItem[]): Promise<number> {
   return changedCount;
 }
 
-async function runSource(name: string, fn: () => Promise<NormalizedItem[]>) {
-  if (!should(name)) return;
+/** Fetches and saves one source; `step` is its --only name. Returns null on success, else why it didn't run. */
+async function runSource(name: string, fn: () => Promise<NormalizedItem[]>, step = name): Promise<string | null> {
+  if (!should(step)) return "skipped";
   try {
     let items = await fn();
     if (LIMIT) items = items.slice(0, LIMIT);
     const changed = await upsertItems(items);
     log(`${name}: ${items.length} items (${changed} new or changed)`);
+    return null;
   } catch (err) {
     // One failing source shouldn't stop the others.
-    console.error(`${name} failed:`, err instanceof Error ? err.message : err);
+    // Supabase errors are plain objects with a message, not Error instances.
+    const message = err instanceof Error ? err.message : ((err as { message?: string })?.message ?? JSON.stringify(err));
+    console.error(`${name} failed:`, message);
     process.exitCode = 1;
+    return message;
+  }
+}
+
+// ---------------------------------------------------------------- areas (on demand)
+
+/** Which of these coverage scopes have been backfilled. Null if ingest_coverage is unavailable. */
+async function loadCovered(scopes: string[]): Promise<Set<string> | null> {
+  const { data, error } = await db.from("ingest_coverage").select("scope").in("scope", scopes).not("backfilled_at", "is", null);
+  if (error) {
+    // e.g. the ingest_coverage migration isn't applied yet: carry on without backfilling.
+    console.error("ingest_coverage unavailable, skipping backfills:", error.message);
+    return null;
+  }
+  return new Set(data.map((c) => c.scope));
+}
+
+async function recordBackfill(scope: string, failure: string | null) {
+  // A --limit run is partial, so it doesn't count as a backfill.
+  if (LIMIT && !failure) return;
+  const { error } = await db
+    .from("ingest_coverage")
+    .upsert(
+      failure ? { scope, last_error: failure.slice(0, 500) } : { scope, backfilled_at: new Date().toISOString(), last_error: null },
+      { onConflict: "scope" },
+    );
+  if (error) console.error(`coverage ${scope}:`, error.message);
+}
+
+const backfillSince = () => new Date(Date.now() - BACKFILL_DAYS * 86_400_000);
+
+/** State bills for every state a user lives in; states seen for the first time get a deeper backfill. */
+async function ingestStates() {
+  if (!should("openstates")) return;
+  const { data: profiles } = await db.from("profiles").select("state").not("state", "is", null);
+  const states = [...new Set((profiles ?? []).map((p) => p.state!))].sort();
+  const covered = await loadCovered(states.map(stateScope));
+  if (!covered && NEW_AREAS_ONLY) return;
+
+  for (const st of states) {
+    const isNew = !!covered && !covered.has(stateScope(st));
+    if (NEW_AREAS_ONLY && !isNew) continue;
+    const failure = await runSource(
+      `openstates ${st}${isNew ? " (backfill)" : ""}`,
+      () => fetchStateBills(st, isNew ? backfillSince() : since, isNew ? { maxPages: BACKFILL_PAGES, by: "action" } : {}),
+      "openstates",
+    );
+    // Without a key nothing was fetched: not a backfill.
+    if (isNew && process.env.OPENSTATES_API_KEY) await recordBackfill(stateScope(st), failure);
+  }
+}
+
+/** Council items for each configured Legistar city; a city's first run backfills BACKFILL_DAYS. */
+async function ingestCities() {
+  if (!should("legistar")) return;
+  const covered = await loadCovered(LOCAL_SOURCES.map(citySourceScope));
+  if (!covered && NEW_AREAS_ONLY) return;
+  for (const src of LOCAL_SOURCES) {
+    const isNew = !!covered && !covered.has(citySourceScope(src));
+    if (NEW_AREAS_ONLY && !isNew) continue;
+    const failure = await runSource(
+      `legistar ${src.client}${isNew ? " (backfill)" : ""}`,
+      () => fetchCityMatters(src, isNew ? backfillSince() : since),
+      "legistar",
+    );
+    if (isNew) await recordBackfill(citySourceScope(src), failure);
   }
 }
 
 // ---------------------------------------------------------------- analysis
 
 const usage: UsageTotals = {};
+
+/** The fact registry (including merged aliases), loaded once per run and extended as facts are minted. */
+const registry: Registry = new Map();
+const freshFacts: string[] = [];
+
+async function loadRegistry() {
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from("facts")
+      .select("key, question, you_phrase, answer_type, options, topics, facets, canonical_key")
+      .range(from, from + 999);
+    if (error) throw error;
+    for (const f of data as Fact[]) registry.set(f.key, f);
+    if (data.length < 1000) break;
+  }
+  log(`facts: ${registry.size} in registry`);
+}
+
+async function saveNewFacts(results: { itemId: string; newFacts: Fact[] }[]) {
+  const rows = results.flatMap((r) =>
+    r.newFacts
+      .filter((f) => !registry.has(f.key))
+      .map(({ canonical_key: _c, ...f }) => ({ ...f, source: "ai", created_from_item: r.itemId })),
+  );
+  const unique = [...new Map(rows.map((r) => [r.key, r])).values()];
+  if (!unique.length) return;
+  const { error } = await db.from("facts").upsert(unique, { onConflict: "key", ignoreDuplicates: true });
+  if (error) throw error;
+  for (const f of unique) {
+    registry.set(f.key, { ...f, canonical_key: null });
+    freshFacts.push(f.key);
+  }
+}
 
 async function collectBatches() {
   const { data: pending, error } = await db
@@ -134,11 +268,11 @@ async function collectBatches() {
   const batchIds = [...new Set(pending.map((p) => p.analysis_batch_id!))];
 
   for (const batchId of batchIds) {
-    let outcome = await collectAnalysisBatch(batchId);
+    let outcome = await collectAnalysisBatch(batchId, registry);
     while (WAIT && outcome.status === "processing") {
       log(`batch ${batchId} still processing…`);
       await new Promise((r) => setTimeout(r, 30_000));
-      outcome = await collectAnalysisBatch(batchId);
+      outcome = await collectAnalysisBatch(batchId, registry);
     }
     if (outcome.status === "processing") {
       log(`batch ${batchId} still processing; will collect next run`);
@@ -155,22 +289,30 @@ async function collectBatches() {
       u.cacheWrite += r.usage.cache_creation_input_tokens ?? 0;
     }
 
+    // Facts first: impacts reference them.
+    await saveNewFacts(ok);
     for (const c of chunk(ok, 500)) {
       const { error: upErr } = await db.from("item_analysis").upsert(
-        c.map((r) => ({ item_id: r.itemId, ...r.analysis!, model: r.model, prompt_version: PROMPT_VERSION, created_at: new Date().toISOString() })),
+        c.map((r) => ({
+          item_id: r.itemId,
+          ...r.analysis!,
+          model: r.model,
+          prompt_version: PROMPT_VERSION,
+          created_at: new Date().toISOString(),
+        })),
         { onConflict: "item_id" },
       );
       if (upErr) throw upErr;
-      await db.from("items").update({ analysis_status: "done", analysis_batch_id: null }).in("id", c.map((r) => r.itemId));
+      await updateItems({ analysis_status: "done", analysis_batch_id: null }, c.map((r) => r.itemId));
     }
     // Failed items: keep any earlier analysis (e.g. an escalation failed), otherwise mark failed.
-    for (const c of chunk(failed, 500)) {
+    for (const c of chunk(failed, 100)) {
       const { data: had } = await db.from("item_analysis").select("item_id").in("item_id", c);
       const hadSet = new Set((had ?? []).map((h) => h.item_id));
       const withPrev = c.filter((id) => hadSet.has(id));
       const without = c.filter((id) => !hadSet.has(id));
-      if (withPrev.length) await db.from("items").update({ analysis_status: "done", analysis_batch_id: null }).in("id", withPrev);
-      if (without.length) await db.from("items").update({ analysis_status: "failed", analysis_batch_id: null }).in("id", without);
+      await updateItems({ analysis_status: "done", analysis_batch_id: null }, withPrev);
+      await updateItems({ analysis_status: "failed", analysis_batch_id: null }, without);
     }
     log(`batch ${batchId}: ${ok.length} analyzed, ${failed.length} failed`);
   }
@@ -180,10 +322,9 @@ const ANALYZE_COLUMNS = "id, type, level, state, title, description, agency, sta
 
 async function submitBatch(items: AnalyzableItem[], model: string, label: string) {
   if (!items.length) return;
-  const batchId = await submitAnalysisBatch(items, model);
-  for (const c of chunk(items.map((i) => i.id), 500)) {
-    await db.from("items").update({ analysis_status: "submitted", analysis_batch_id: batchId }).in("id", c);
-  }
+  const facts = [...registry.values()].filter((f) => !f.canonical_key);
+  const batchId = await submitAnalysisBatch(items, model, facts);
+  await updateItems({ analysis_status: "submitted", analysis_batch_id: batchId }, items.map((i) => i.id));
   log(`${label}: submitted ${items.length} items to ${model} (batch ${batchId})`);
 }
 
@@ -237,9 +378,7 @@ async function requeueStale() {
     .or(`comment_deadline.gt.${today},event_at.gt.${today},last_action_at.gt.${recent}`, { referencedTable: "items" })
     .limit(LIMIT ?? 10_000);
   if (error) throw error;
-  for (const c of chunk(data.map((d) => d.item_id), 500)) {
-    await db.from("items").update({ analysis_status: "pending" }).in("id", c);
-  }
+  await updateItems({ analysis_status: "pending" }, data.map((d) => d.item_id));
   log(`reanalyze: queued ${data.length} active items analyzed with an older prompt`);
 }
 
@@ -306,29 +445,37 @@ async function main() {
     return out;
   });
 
-  await runSource("openstates", async () => {
-    const { data } = await db.from("profiles").select("state").not("state", "is", null);
-    const states = [...new Set((data ?? []).map((p) => p.state!))];
-    const all: NormalizedItem[] = [];
-    for (const st of states) all.push(...(await fetchStateBills(st, since)));
-    return all;
-  });
+  await ingestStates();
 
-  await runSource("legistar", async () => {
-    const all: NormalizedItem[] = [];
-    for (const src of LOCAL_SOURCES) all.push(...(await fetchCityMatters(src, since)));
-    return all;
-  });
+  await ingestCities();
+
+  if (should("locations")) {
+    try {
+      await locateItems(db, log, LIMIT);
+    } catch (err) {
+      console.error("locations failed:", err instanceof Error ? err.message : (err as { message?: string })?.message ?? err);
+      process.exitCode = 1;
+    }
+  }
 
   if (should("analyze")) {
     if (!aiConfigured()) {
       await heuristicPending();
     } else {
+      await loadRegistry();
       await collectBatches();
       if (REANALYZE) await requeueStale();
       await escalate();
       await submitPending();
       if (WAIT) await collectBatches();
+      // Facts minted this run, plus any the "Ask about my situation" agent minted since the last run.
+      const { data: agentFacts } = await db
+        .from("facts")
+        .select("key")
+        .eq("source", "agent")
+        .is("canonical_key", null)
+        .gte("created_at", since.toISOString());
+      await consolidateFacts(db, [...new Set([...freshFacts, ...(agentFacts ?? []).map((f) => f.key)])], log);
       const cost = estimateCost(usage);
       if (cost.lines.length) log(`token usage:\n${cost.lines.join("\n")}\n  total ≈ $${cost.total.toFixed(4)}`);
     }

@@ -39,14 +39,14 @@ export type Database = {
                   ]
                 },"draft_usage": {
                   Row: {
-                    "count": number,"day": string,"user_id": string
+                    "count": number,"day": string,"kind": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "count"?: number,"day": string,"user_id": string
+                    "count"?: number,"day": string,"kind"?: string,"user_id": string
                   }
                   Update: {
-                    "count"?: number,"day"?: string,"user_id"?: string
+                    "count"?: number,"day"?: string,"kind"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -77,6 +77,46 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"facts": {
+                  Row: {
+                    "answer_type": string,"canonical_key": string | null,"created_at": string,"created_from_item": string | null,"facets": (string)[],"key": string,"options": (string)[],"question": string,"source": string,"topics": (string)[],"you_phrase": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "answer_type": string,"canonical_key"?: string | null,"created_at"?: string,"created_from_item"?: string | null,"facets"?: (string)[],"key": string,"options"?: (string)[],"question": string,"source": string,"topics"?: (string)[],"you_phrase": string
+                  }
+                  Update: {
+                    "answer_type"?: string,"canonical_key"?: string | null,"created_at"?: string,"created_from_item"?: string | null,"facets"?: (string)[],"key"?: string,"options"?: (string)[],"question"?: string,"source"?: string,"topics"?: (string)[],"you_phrase"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "facts_canonical_key_fkey"
+      columns: ["canonical_key"]
+isOneToOne: false
+      referencedRelation: "facts"
+      referencedColumns: ["key"]
+    },{
+      foreignKeyName: "facts_created_from_item_fkey"
+      columns: ["created_from_item"]
+isOneToOne: false
+      referencedRelation: "items"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"ingest_coverage": {
+                  Row: {
+                    "backfilled_at": string | null,"last_error": string | null,"requested_at": string | null,"scope": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "backfilled_at"?: string | null,"last_error"?: string | null,"requested_at"?: string | null,"scope": string
+                  }
+                  Update: {
+                    "backfilled_at"?: string | null,"last_error"?: string | null,"requested_at"?: string | null,"scope"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"item_analysis": {
                   Row: {
                     "affected_groups": (string)[],"arguments_against": (string)[],"arguments_for": (string)[],"created_at": string,"headline": string | null,"impacts": NonNullable<Json>,"item_id": string,"keywords": (string)[],"model": string,"prompt_version": string,"significance": number,"summary": string,"topics": (string)[],"why_it_matters": string | null
@@ -93,6 +133,46 @@ isOneToOne: false
       foreignKeyName: "item_analysis_item_id_fkey"
       columns: ["item_id"]
 isOneToOne: true
+      referencedRelation: "items"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"item_feedback": {
+                  Row: {
+                    "created_at": string,"item_id": string,"relevant": boolean,"source": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"item_id": string,"relevant": boolean,"source": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"item_id"?: string,"relevant"?: boolean,"source"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "item_feedback_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "items"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"item_locations": {
+                  Row: {
+                    "address": string,"item_id": string,"lat": number,"lng": number,"matched_address": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "address": string,"item_id": string,"lat": number,"lng": number,"matched_address"?: string | null
+                  }
+                  Update: {
+                    "address"?: string,"item_id"?: string,"lat"?: number,"lng"?: number,"matched_address"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "item_locations_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
       referencedRelation: "items"
       referencedColumns: ["id"]
     }
@@ -125,14 +205,14 @@ isOneToOne: false
                   ]
                 },"items": {
                   Row: {
-                    "action_url": string | null,"agency": string | null,"analysis_batch_id": string | null,"analysis_status": string,"comment_deadline": string | null,"content_hash": string,"created_at": string,"description": string | null,"event_at": string | null,"external_id": string,"id": string,"introduced_at": string | null,"jurisdiction_id": string | null,"last_action": string | null,"last_action_at": string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"source": string,"state": string | null,"status": string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at": string,"url": string | null
+                    "action_url": string | null,"agency": string | null,"analysis_batch_id": string | null,"analysis_status": string,"comment_deadline": string | null,"content_hash": string,"created_at": string,"description": string | null,"event_at": string | null,"external_id": string,"id": string,"introduced_at": string | null,"jurisdiction_id": string | null,"last_action": string | null,"last_action_at": string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"located_at": string | null,"source": string,"state": string | null,"status": string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at": string,"url": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash": string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id": string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"source": string,"state"?: string | null,"status"?: string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
+                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash": string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id": string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level": Database["public"]['Enums']["jurisdiction_level"],"located_at"?: string | null,"source": string,"state"?: string | null,"status"?: string | null,"title": string,"type": Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
                   }
                   Update: {
-                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash"?: string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id"?: string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level"?: Database["public"]['Enums']["jurisdiction_level"],"source"?: string,"state"?: string | null,"status"?: string | null,"title"?: string,"type"?: Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
+                    "action_url"?: string | null,"agency"?: string | null,"analysis_batch_id"?: string | null,"analysis_status"?: string,"comment_deadline"?: string | null,"content_hash"?: string,"created_at"?: string,"description"?: string | null,"event_at"?: string | null,"external_id"?: string,"id"?: string,"introduced_at"?: string | null,"jurisdiction_id"?: string | null,"last_action"?: string | null,"last_action_at"?: string | null,"level"?: Database["public"]['Enums']["jurisdiction_level"],"located_at"?: string | null,"source"?: string,"state"?: string | null,"status"?: string | null,"title"?: string,"type"?: Database["public"]['Enums']["item_type"],"updated_at"?: string,"url"?: string | null
                   }
                   Relationships: [
                     
@@ -204,6 +284,26 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"personal_assessments": {
+                  Row: {
+                    "created_at": string,"facts_hash": string,"item_id": string,"model": string,"result": NonNullable<Json>,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"facts_hash": string,"item_id": string,"model": string,"result": NonNullable<Json>,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"facts_hash"?: string,"item_id"?: string,"model"?: string,"result"?: NonNullable<Json>,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "personal_assessments_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "items"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"points_ledger": {
                   Row: {
@@ -305,6 +405,26 @@ isOneToOne: false
       referencedColumns: ["slug"]
     }
                   ]
+                },"user_facts": {
+                  Row: {
+                    "fact_key": string,"item_id": string | null,"source": string,"updated_at": string,"user_id": string,"value": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "fact_key": string,"item_id"?: string | null,"source": string,"updated_at"?: string,"user_id": string,"value"?: string | null
+                  }
+                  Update: {
+                    "fact_key"?: string,"item_id"?: string | null,"source"?: string,"updated_at"?: string,"user_id"?: string,"value"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "user_facts_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "items"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"user_interests": {
                   Row: {
                     "created_at": string,"id": string,"is_pet": boolean,"keywords": (string)[],"label": string,"topic_slugs": (string)[],"user_id": string
@@ -345,12 +465,25 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "consume_draft_quota":
+            "browse_items":
+{ Args: { "p_level"?: string,"p_limit"?: number,"p_offset"?: number,"p_query"?: string,"p_scope"?: string }; Returns: {
+              "active": boolean,"analysis": Json,"in_area": boolean,"item": Json,"my_official_ids": (string)[],"relevant": boolean,"total_count": number
+            }[]
+                           },
+"consume_ai_quota":
+{ Args: { "p_kind": string,"p_limit": number,"p_user": string }; Returns: boolean
+                           },
+"consume_draft_quota":
 { Args: { "p_limit": number,"p_user": string }; Returns: boolean
                            },
 "feed_candidates":
 { Args: { "p_limit"?: number }; Returns: {
               "analysis": Json,"item": Json,"my_official_ids": (string)[]
+            }[]
+                           },
+"index_counts":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "in_area": number,"in_area_active": number,"indexed": number
             }[]
                            }
           }

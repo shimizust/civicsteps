@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { TOPICS, topicName, type Demographics } from "@/lib/taxonomy";
+import { DEMOGRAPHIC_QUESTIONS as QUESTIONS, TOPICS, topicName, type Demographics } from "@/lib/taxonomy";
 import { Button, Card, Pill, cx } from "@/components/ui";
 import {
   addPetIssue,
@@ -126,6 +126,12 @@ function ZipStep({ initial, onDone }: { initial: string; onDone: () => void }) {
             {result.stateLookup === "skipped" && " State legislators need an Open States API key on the server; we'll add them once it's set."}
             {result.stateLookup === "failed" && " We couldn't look up your state legislators right now; we'll retry later."}
           </p>
+          {result.coverage.status !== "ready" && (
+            <p className="mt-2 text-sm text-muted">
+              You&apos;re one of our first members here, so we&apos;re still gathering recent {listJoin(result.coverage.pending)}.{" "}
+              {result.coverage.status === "backfilling" ? "They'll show up in your feed within the hour." : "They'll show up after the next update (usually overnight)."}
+            </p>
+          )}
           <p className="mt-2 text-xs text-muted">
             Some ZIP codes cross district lines. We use the middle of yours, so a district near the edge may be off.
           </p>
@@ -136,24 +142,10 @@ function ZipStep({ initial, onDone }: { initial: string; onDone: () => void }) {
   );
 }
 
+const listJoin = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
 // ---------------------------------------------------------------- 2. about you
 
-type Q = { key: keyof Demographics; label: string } & ({ kind: "choice"; options: [string, string][] } | { kind: "bool" });
-const QUESTIONS: Q[] = [
-  { key: "housing", label: "Do you rent or own your home?", kind: "choice", options: [["rent", "Rent"], ["own", "Own"], ["other", "Other"]] },
-  { key: "income", label: "Household income", kind: "choice", options: [["low", "Lower"], ["middle", "Middle"], ["high", "Higher"]] },
-  { key: "age", label: "Age", kind: "choice", options: [["18-24", "18–24"], ["25-44", "25–44"], ["45-64", "45–64"], ["65+", "65+"]] },
-  { key: "area", label: "Where you live", kind: "choice", options: [["urban", "Urban"], ["suburban", "Suburban"], ["rural", "Rural"]] },
-  { key: "commute", label: "How you mostly get around", kind: "choice", options: [["transit", "Transit"], ["drive", "Drive"], ["bike-walk", "Bike / walk"], ["remote", "Work from home"]] },
-  { key: "coverage", label: "Health coverage", kind: "choice", options: [["employer", "Employer"], ["marketplace", "Marketplace"], ["medicare", "Medicare"], ["medicaid", "Medicaid"], ["uninsured", "Uninsured"]] },
-  { key: "work", label: "Work", kind: "choice", options: [["hourly", "Hourly"], ["small-business", "Small business owner"], ["healthcare", "Healthcare"], ["teacher", "Education"], ["tech", "Tech"], ["farm", "Farming / ranching"], ["union", "Union member"], ["other", "Other"]] },
-  { key: "student", label: "Student", kind: "bool" },
-  { key: "parent", label: "Parent or guardian", kind: "bool" },
-  { key: "veteran", label: "Veteran", kind: "bool" },
-  { key: "disability", label: "Living with a disability", kind: "bool" },
-  { key: "immigrant", label: "Immigrant", kind: "bool" },
-  { key: "outdoors", label: "Spend a lot of time outdoors (hiking, climbing, fishing…)", kind: "bool" },
-];
 
 function AboutStep({ initial, onBack, onDone, pending }: { initial: Demographics; onBack: () => void; onDone: (d: Demographics) => void; pending: boolean }) {
   const [d, setD] = useState<Demographics>(initial);
@@ -165,7 +157,7 @@ function AboutStep({ initial, onBack, onDone, pending }: { initial: Demographics
     <form onSubmit={(e) => { e.preventDefault(); onDone(d); }}>
       <StepHeader
         title="A little about you"
-        sub="Optional. Answers are broad ranges, used only to flag issues that affect people like you (a renter protection, a Medicare change). Skip anything you like."
+        sub="Optional. Answers are broad ranges, used only to flag issues that affect people like you (a renter protection, a Medicare change). Skip anything: when a specific bill depends on something, we'll ask one quick question then."
       />
       <div className="space-y-5">
         {choices.map((q) => q.kind === "choice" && (
