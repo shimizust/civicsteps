@@ -12,7 +12,7 @@ export function FactQuestion({
   current,
   hint,
 }: {
-  q: Pick<OpenQuestion, "kind" | "key" | "question" | "options">;
+  q: Pick<OpenQuestion, "kind" | "key" | "question" | "helpText" | "options">;
   source: AnswerInput["source"];
   itemId?: string | null;
   /** Pre-selected answer (Profile page). */
@@ -35,6 +35,7 @@ export function FactQuestion({
   return (
     <div className={cx("py-3", pending && "opacity-60")} aria-busy={pending}>
       <p className="text-sm font-medium">{q.question}</p>
+      {q.helpText && <p className="mt-1 text-sm text-muted">{q.helpText}</p>}
       {hint && <p className="text-xs text-muted">{hint}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {q.options.map((o) => (

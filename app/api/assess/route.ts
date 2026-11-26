@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   const [registry, { data: nearby }] = await Promise.all([
     getRegistry(supabase, [...factKeysOf(impacts), ...Object.keys(answers)]),
     topics.length
-      ? supabase.from("facts").select("key, question, you_phrase, answer_type, options, topics, facets, canonical_key").is("canonical_key", null).overlaps("topics", topics).limit(60)
+      ? supabase.from("facts").select("key, question, help_text, you_phrase, answer_type, options, topics, facets, canonical_key").is("canonical_key", null).overlaps("topics", topics).limit(60)
       : Promise.resolve({ data: [] }),
   ]);
   for (const f of (nearby ?? []) as Fact[]) if (!registry.has(f.key)) registry.set(f.key, f);

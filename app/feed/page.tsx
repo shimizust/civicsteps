@@ -6,8 +6,7 @@ import { areasFor } from "@/lib/coverage";
 import { ItemCard } from "@/components/ItemCard";
 import { Card, Empty, LinkButton, PageTitle, SectionTitle } from "@/components/ui";
 import type { Ranked } from "@/lib/relevance";
-import type { RankedQuestion } from "@/lib/impact";
-import { FactQuestion } from "@/components/FactQuestion";
+import { QuickQuestions } from "@/components/QuickQuestions";
 import { RelevanceVote } from "@/components/RelevanceVote";
 import { LocalIndexProgress } from "@/components/LocalIndexProgress";
 
@@ -149,29 +148,6 @@ function Coverage({
         ) : null}
         . Missing something? <Link className="text-accent underline" href="/browse">Browse everything</Link> and mark what&apos;s relevant to tune this feed.
       </p>
-    </Card>
-  );
-}
-
-/** The few answers that would sharpen the most "how this affects you" estimates in this feed. */
-function QuickQuestions({ questions }: { questions: RankedQuestion[] }) {
-  if (!questions.length) return null;
-  return (
-    <Card className="mt-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Quick questions</h2>
-      <p className="mt-1 text-sm text-muted">
-        Some items depend on details we don&apos;t know yet. Answer what you like; we only use it to estimate how items affect you, and you can change it on your profile.
-      </p>
-      <div className="mt-1 divide-y divide-line">
-        {questions.map((q) => (
-          <FactQuestion
-            key={`${q.kind}:${q.key}`}
-            q={q}
-            source="feed"
-            hint={`Personalizes ${q.itemCount} ${q.itemCount === 1 ? "item" : "items"}`}
-          />
-        ))}
-      </div>
     </Card>
   );
 }

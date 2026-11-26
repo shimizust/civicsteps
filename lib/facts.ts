@@ -11,6 +11,7 @@ export type FactAnswerType = "bool" | "choice";
 export type Fact = {
   key: string;
   question: string;
+  help_text?: string | null;
   you_phrase: string;
   answer_type: FactAnswerType;
   options: string[];
@@ -37,6 +38,7 @@ export type OpenQuestion = {
   kind: "fact" | "profile";
   key: string;
   question: string;
+  helpText?: string;
   options: QuestionOption[];
   /** Largest item-level magnitude among the impacts that depend on it (1-3). */
   magnitude: number;
@@ -81,7 +83,7 @@ export function normalizeAnswer(f: Pick<Fact, "answer_type" | "options">, raw: s
 }
 
 export function factQuestion(f: Fact, magnitude = 1): OpenQuestion {
-  return { kind: "fact", key: f.key, question: f.question, options: factOptions(f), magnitude };
+  return { kind: "fact", key: f.key, question: f.question, helpText: f.help_text ?? undefined, options: factOptions(f), magnitude };
 }
 
 export function profileQuestion(key: keyof Demographics, magnitude = 1): OpenQuestion | null {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { personalImpact, rankOpenQuestions, type ImpactInput } from "@/lib/impact";
-import { factsForPrompt, normalizeAnswer, normalizeFactKey, resolveKey, type Fact, type Registry } from "@/lib/facts";
+import { factQuestion, factsForPrompt, normalizeAnswer, normalizeFactKey, resolveKey, type Fact, type Registry } from "@/lib/facts";
 import { normalizeOutput, type AnalysisOutput } from "@/lib/ai/analyze";
 import { normalizeAssessment, assessmentHash, type AssessOutput } from "@/lib/ai/assess";
 import { validMerges } from "@/ingest/consolidateFacts";
@@ -118,9 +118,9 @@ describe("rankOpenQuestions", () => {
     const ranked = rankOpenQuestions([
       { score: 20, impact: imp(q("rides_bart", 2)) },
       { score: 15, impact: imp(q("rides_bart", 1), q("owns_ev", 3)) },
-      { score: 1, impact: imp(q("climbs_indian_creek", 3)) },
+      { score: 1, impact: imp(q("climbs_indian_creek", 3), q("rides_muni", 1)) },
     ]);
-    expect(ranked.map((r) => r.key)).toEqual(["rides_bart", "owns_ev", "climbs_indian_creek"]);
+    expect(ranked.map((r) => r.key)).toEqual(["rides_bart", "owns_ev", "climbs_indian_creek", "rides_muni"]);
     expect(ranked[0]).toMatchObject({ itemCount: 2, magnitude: 2 });
   });
 });
@@ -152,7 +152,7 @@ describe("normalizeOutput", () => {
       out(
         [imp({ fact_key: "rides_muni", when: ["yes"] }), { ...imp({ fact_key: "made_up", when: ["yes"] }), facet: "wallet" }],
         [
-          { key: "rides_muni", question: "Do you ride Muni?", you_phrase: "you ride Muni.", answer_type: "bool", options: [], topics: ["transportation/transit"], facets: ["mobility"] },
+          { key: "rides_muni", question: "Do you ride Muni?", help_text: "  Muni runs buses and trains in San Francisco.  ", you_phrase: "you ride Muni.", answer_type: "bool", options: [], topics: ["transportation/transit"], facets: ["mobility"] },
           { key: "unused_fact", question: "Unused?", you_phrase: "x", answer_type: "bool", options: [], topics: [], facets: [] },
           { key: "rides_bart", question: "Dup of existing", you_phrase: "x", answer_type: "bool", options: [], topics: [], facets: [] },
         ],
@@ -162,6 +162,7 @@ describe("normalizeOutput", () => {
     expect(analysis.impacts.map((i) => i.applies_if)).toEqual([{ fact_key: "rides_muni", when: ["yes"] }, null]);
     expect(newFacts.map((f) => f.key)).toEqual(["rides_muni"]);
     expect(newFacts[0].you_phrase).toBe("you ride Muni");
+    expect(factQuestion(newFacts[0]).helpText).toBe("Muni runs buses and trains in San Francisco.");
     expect(analysis).not.toHaveProperty("new_facts");
     expect(analysis.headline).toBe("Raises fares");
   });

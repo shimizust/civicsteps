@@ -79,14 +79,14 @@ isOneToOne: false
                   ]
                 },"facts": {
                   Row: {
-                    "answer_type": string,"canonical_key": string | null,"created_at": string,"created_from_item": string | null,"facets": (string)[],"key": string,"options": (string)[],"question": string,"source": string,"topics": (string)[],"you_phrase": string
+                    "answer_type": string,"canonical_key": string | null,"created_at": string,"created_from_item": string | null,"facets": (string)[],"help_text": string | null,"key": string,"options": (string)[],"question": string,"source": string,"topics": (string)[],"you_phrase": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "answer_type": string,"canonical_key"?: string | null,"created_at"?: string,"created_from_item"?: string | null,"facets"?: (string)[],"key": string,"options"?: (string)[],"question": string,"source": string,"topics"?: (string)[],"you_phrase": string
+                    "answer_type": string,"canonical_key"?: string | null,"created_at"?: string,"created_from_item"?: string | null,"facets"?: (string)[],"help_text"?: string | null,"key": string,"options"?: (string)[],"question": string,"source": string,"topics"?: (string)[],"you_phrase": string
                   }
                   Update: {
-                    "answer_type"?: string,"canonical_key"?: string | null,"created_at"?: string,"created_from_item"?: string | null,"facets"?: (string)[],"key"?: string,"options"?: (string)[],"question"?: string,"source"?: string,"topics"?: (string)[],"you_phrase"?: string
+                    "answer_type"?: string,"canonical_key"?: string | null,"created_at"?: string,"created_from_item"?: string | null,"facets"?: (string)[],"help_text"?: string | null,"key"?: string,"options"?: (string)[],"question"?: string,"source"?: string,"topics"?: (string)[],"you_phrase"?: string
                   }
                   Relationships: [
                     {

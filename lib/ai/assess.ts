@@ -43,7 +43,7 @@ export type Assessment = {
   overall: Verdict;
   summary: string;
   points: { facet: string; direction: "benefit" | "cost" | "mixed"; text: string }[];
-  follow_ups: { key: string; question: string; options: QuestionOption[] }[];
+  follow_ups: { key: string; question: string; helpText?: string; options: QuestionOption[] }[];
 };
 
 export type AssessInput = {
@@ -72,7 +72,7 @@ const SYSTEM = `You help one resident understand how a specific government item 
 - Describe concrete, practical effects on this person: money, access, services, time, rules they'd follow. Not whether the policy is good, and never moral, religious or ideological judgments.
 - Use only the item information and what the person told us. Don't invent figures. Hedge ("would likely", "could") where the text is uncertain.
 - If you can't tell how it affects them, say so (overall "unclear") and ask the follow-up questions that would settle it.
-- Follow-up questions are one-tap: prefer yes/no. Reuse an existing fact key whenever one asks the same thing.
+- Follow-up questions are one-tap: prefer yes/no. Reuse an existing fact key whenever one asks the same thing. For specialized terms, add plain-language help_text and say where the resident can check their answer.
 - Never ask about religion, immigration or citizenship status, health conditions, sexuality or gender identity, political views, or anything illegal, and never ask for names, addresses or contact details.`;
 
 function describeProfile(d: Demographics): string[] {
@@ -151,11 +151,11 @@ export function normalizeAssessment(o: AssessOutput, registry: Registry, answers
     const key = resolveKey(registry, normalizeFactKey(f.key));
     const existing = registry.get(key);
     if (key in answers) continue;
-    if (existing) follow.push({ key, question: existing.question, options: factOptions(existing) });
+    if (existing) follow.push({ key, question: existing.question, helpText: existing.help_text ?? f.help_text?.trim(), options: factOptions(existing) });
     else minted.push(f);
   }
   const newFacts = normalizeNewFacts(minted, registry).filter((f) => !(f.key in answers));
-  for (const f of newFacts) follow.push({ key: f.key, question: f.question, options: factOptions(f) });
+  for (const f of newFacts) follow.push({ key: f.key, question: f.question, helpText: f.help_text ?? undefined, options: factOptions(f) });
 
   return {
     assessment: {

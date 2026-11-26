@@ -60,7 +60,7 @@ export async function getRegistry(db: DB, keys: Iterable<string>): Promise<Regis
     for (let i = 0; i < want.length; i += 150) {
       const { data } = await db
         .from("facts")
-        .select("key, question, you_phrase, answer_type, options, topics, facets, canonical_key")
+        .select("key, question, help_text, you_phrase, answer_type, options, topics, facets, canonical_key")
         .in("key", want.slice(i, i + 150));
       found.push(...((data ?? []) as Fact[]));
     }

@@ -42,6 +42,7 @@ export type Impact = z.infer<typeof ImpactSchema>;
 export const NewFactSchema = z.object({
   key: z.string().describe("snake_case, specific and reusable across items, e.g. 'rides_bart', 'climbs_indian_creek', 'owns_ev'"),
   question: z.string().describe("Short question a resident answers in one tap, e.g. 'Do you ride BART?'"),
+  help_text: z.string().nullable().optional().describe("One or two short sentences explaining unfamiliar terms or where to check the answer. Null if the question is self-explanatory."),
   you_phrase: z.string().describe("Second person completion of 'Applies to you because …', e.g. 'you ride BART'"),
   answer_type: z.enum(["bool", "choice"]).describe("Prefer 'bool' (yes/no)"),
   options: z.array(z.string()).describe("2-5 short option labels for 'choice'; empty for 'bool'"),
@@ -108,7 +109,7 @@ Specific facts ("applies_if"):
   - EV tax credit → owns_or_plans_ev ("Do you own or plan to buy an electric vehicle?")
 - Leave applies_if null when the impact reaches a whole group or everyone in the jurisdiction (an income tax change, a statewide minimum wage). Users only see items for where they live, so never mint a fact that just restates a group plus the place ("rents in Seattle" is just the renters group).
 - Each item lists the existing facts for its topics. Reuse one whenever it asks the same thing, even if you'd word it differently. Mint a new fact (in new_facts) only when none fits, and make it reusable for future items (name the place or program, not the bill).
-- Facts must be concrete, stable and answerable in one tap. Prefer yes/no.
+- Facts must be concrete, stable and answerable in one tap. Prefer yes/no. Spell out unfamiliar acronyms in the question where practical. For specialized terms or eligibility categories, use help_text to explain them in plain language and suggest a document or source the resident can check. Never guess eligibility thresholds.
 - Never mint facts about religion, immigration or citizenship status, health conditions, sexuality or gender identity, political affiliation, or anything illegal. Use groups for those, or nothing.
 
 Topic slugs (use only these, prefer the most specific child):
@@ -207,6 +208,7 @@ export function normalizeNewFacts(raw: NewFact[], registry: Registry): Fact[] {
     out.set(key, {
       key,
       question,
+      help_text: n.help_text?.trim() || null,
       you_phrase,
       answer_type,
       options: answer_type === "choice" ? options : [],

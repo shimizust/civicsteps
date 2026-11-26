@@ -203,10 +203,10 @@ function groupUnknown(g: AffectedGroup, d: Demographics, answers: Answers): bool
 export type RankedQuestion = OpenQuestion & { itemCount: number; weight: number };
 
 /**
- * The few questions that would personalize the most of what's in front of the user: each open question is
+ * Questions are ranked by how much they would personalize what's in front of the user. Each is
  * weighted by the score of every item that depends on it times how big that item's effect is.
  */
-export function rankOpenQuestions(items: { score: number; impact: PersonalImpact }[], n = 3): RankedQuestion[] {
+export function rankOpenQuestions(items: { score: number; impact: PersonalImpact }[]): RankedQuestion[] {
   const agg = new Map<string, RankedQuestion>();
   for (const it of items) {
     for (const q of it.impact.open) {
@@ -218,7 +218,7 @@ export function rankOpenQuestions(items: { score: number; impact: PersonalImpact
       agg.set(id, prev);
     }
   }
-  return [...agg.values()].sort((a, b) => b.weight - a.weight || b.itemCount - a.itemCount).slice(0, n);
+  return [...agg.values()].sort((a, b) => b.weight - a.weight || b.itemCount - a.itemCount);
 }
 
 /** Facets with no listed impact, for the "not significantly affected" line. */
