@@ -8,7 +8,9 @@ on:
         description: "Extra args for npm run ingest, e.g. --only=federalregister --limit=20"
         required: false
 
-concurrency: ingest
+concurrency:
+  group: ingest
+  queue: max
 
 jobs:
   ingest:
@@ -24,11 +26,26 @@ jobs:
       EMAIL_FROM: ${{ vars.EMAIL_FROM }}
       NEXT_PUBLIC_SITE_URL: ${{ vars.SITE_URL }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Forks and repos without a hosted database skip instead of failing every night.
+      - name: Check configuration
+        id: cfg
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::notice::SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets are not set; skipping."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.cfg.outputs.ok == 'true'
+        uses: actions/checkout@v4
+      - if: steps.cfg.outputs.ok == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run ingest -- ${{ inputs.args }}
-      - run: npm run notify
+      - if: steps.cfg.outputs.ok == 'true'
+        run: npm ci
+      - if: steps.cfg.outputs.ok == 'true'
+        run: npm run ingest -- ${{ inputs.args }}
+      - if: steps.cfg.outputs.ok == 'true'
+        run: npm run notify

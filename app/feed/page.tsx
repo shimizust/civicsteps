@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
-import { getFeed, getIndexCounts, getMyOfficials, getProfile, getStats, pendingAreas, type Place } from "@/lib/data";
+import { getAreaProgress, getFeed, getIndexCounts, getMyOfficials, getProfile, getStats, type Place } from "@/lib/data";
 import { areasFor } from "@/lib/coverage";
 import { ItemCard } from "@/components/ItemCard";
 import { Card, Empty, LinkButton, PageTitle, SectionTitle } from "@/components/ui";
@@ -9,6 +9,7 @@ import type { Ranked } from "@/lib/relevance";
 import type { RankedQuestion } from "@/lib/impact";
 import { FactQuestion } from "@/components/FactQuestion";
 import { RelevanceVote } from "@/components/RelevanceVote";
+import { LocalIndexProgress } from "@/components/LocalIndexProgress";
 
 const LEVELS = ["all", "city", "state", "federal"] as const;
 
@@ -19,12 +20,12 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   if (!profile?.onboarded_at) redirect("/onboarding");
 
   const { level = "all" } = await searchParams;
-  const [feed, stats, officials, counts, gathering] = await Promise.all([
+  const [feed, stats, officials, counts, coverage] = await Promise.all([
     getFeed(supabase, user.id),
     getStats(supabase, user.id),
     getMyOfficials(supabase, user.id),
     getIndexCounts(supabase),
-    pendingAreas(supabase, areasFor(profile.state, profile.jurisdiction_ids)),
+    getAreaProgress(supabase, areasFor(profile.state, profile.jurisdiction_ids)),
   ]);
   const repsById = new Map(officials.map((o) => [o.id, o]));
   const repsFor = (r: Ranked) => r.my_official_ids.flatMap((id) => repsById.get(id) ?? []);
@@ -44,7 +45,8 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
         <span className="text-muted">{stats.badges.filter((b) => b.awarded_at).length} of {stats.badges.length} badges</span>
       </Card>
 
-      <Coverage picked={picked} {...counts} gathering={gathering} />
+      <LocalIndexProgress zip={profile.zip} areas={coverage} now={Date.now()} />
+      <Coverage picked={picked} {...counts} />
 
       <nav className="flex gap-1.5" aria-label="Filter by level">
         {LEVELS.map((l) => (
@@ -124,13 +126,11 @@ function Coverage({
   indexed,
   inArea,
   inAreaActive,
-  gathering,
 }: {
   picked: number;
   indexed: number;
   inArea: number;
   inAreaActive: number;
-  gathering: string[];
 }) {
   const elsewhere = indexed - inArea;
   const stale = inArea - inAreaActive;
@@ -149,11 +149,6 @@ function Coverage({
         ) : null}
         . Missing something? <Link className="text-accent underline" href="/browse">Browse everything</Link> and mark what&apos;s relevant to tune this feed.
       </p>
-      {gathering.length > 0 && (
-        <p className="mt-2 text-muted">
-          We&apos;re still pulling in recent {gathering.join(" and ")} for your area, since you&apos;re one of our first members there. Check back soon.
-        </p>
-      )}
     </Card>
   );
 }

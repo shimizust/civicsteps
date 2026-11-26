@@ -105,14 +105,14 @@ isOneToOne: false
                   ]
                 },"ingest_coverage": {
                   Row: {
-                    "backfilled_at": string | null,"last_error": string | null,"requested_at": string | null,"scope": string
+                    "backfilled_at": string | null,"progress": string | null,"progress_at": string | null,"items_found": number | null,"items_analyzed": number | null,"items_failed": number | null,"last_error": string | null,"requested_at": string | null,"scope": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "backfilled_at"?: string | null,"last_error"?: string | null,"requested_at"?: string | null,"scope": string
+                    "backfilled_at"?: string | null,"progress"?: string | null,"progress_at"?: string | null,"items_found"?: number | null,"items_analyzed"?: number | null,"items_failed"?: number | null,"last_error"?: string | null,"requested_at"?: string | null,"scope": string
                   }
                   Update: {
-                    "backfilled_at"?: string | null,"last_error"?: string | null,"requested_at"?: string | null,"scope"?: string
+                    "backfilled_at"?: string | null,"progress"?: string | null,"progress_at"?: string | null,"items_found"?: number | null,"items_analyzed"?: number | null,"items_failed"?: number | null,"last_error"?: string | null,"requested_at"?: string | null,"scope"?: string
                   }
                   Relationships: [
                     
@@ -476,6 +476,7 @@ isOneToOne: false
 "consume_draft_quota":
 { Args: { "p_limit": number,"p_user": string }; Returns: boolean
                            },
+"claim_area_backfill": { Args: { "p_scopes": string[] }; Returns: boolean },
 "feed_candidates":
 { Args: { "p_limit"?: number }; Returns: {
               "analysis": Json,"item": Json,"my_official_ids": (string)[]

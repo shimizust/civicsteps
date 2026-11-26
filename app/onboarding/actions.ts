@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
 import { geocodeZip } from "@/lib/civic/geocode";
 import { resolveOfficials } from "@/lib/civic/resolve";
-import { areasFor, requestAreaCoverage, type CoverageStatus } from "@/lib/coverage";
+import { areasFor, requestAreaCoverage } from "@/lib/coverage";
 import { mapInterest } from "@/lib/ai/mapInterest";
 import { cleanDemographics, TOPIC_SLUGS, type Demographics } from "@/lib/taxonomy";
 
@@ -21,7 +21,7 @@ export type ZipResult =
       summary: string[];
       officials: number;
       stateLookup: "ok" | "skipped" | "failed";
-      coverage: { status: CoverageStatus; pending: string[] };
+      coverage: string[] | null;
     }
   | { ok: false; error: string };
 
@@ -49,7 +49,7 @@ export async function saveZip(input: string): Promise<ZipResult> {
     resolveOfficials(user.id, d),
     requestAreaCoverage(areasFor(d.state, d.jurisdictionIds)).catch((err) => {
       console.error("coverage request failed", err);
-      return { status: "ready" as const, pending: [] };
+      return null;
     }),
   ]);
   const summary = [

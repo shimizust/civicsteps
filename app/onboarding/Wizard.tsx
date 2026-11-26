@@ -126,10 +126,10 @@ function ZipStep({ initial, onDone }: { initial: string; onDone: () => void }) {
             {result.stateLookup === "skipped" && " State legislators need an Open States API key on the server; we'll add them once it's set."}
             {result.stateLookup === "failed" && " We couldn't look up your state legislators right now; we'll retry later."}
           </p>
-          {result.coverage.status !== "ready" && (
+          {result.coverage && result.coverage.length > 0 && (
             <p className="mt-2 text-sm text-muted">
-              You&apos;re one of our first members here, so we&apos;re still gathering recent {listJoin(result.coverage.pending)}.{" "}
-              {result.coverage.status === "backfilling" ? "They'll show up in your feed within the hour." : "They'll show up after the next update (usually overnight)."}
+              We&apos;re preparing to index recent {listJoin(result.coverage)}.{" "}
+              You can follow the progress in your civic feed.
             </p>
           )}
           <p className="mt-2 text-xs text-muted">

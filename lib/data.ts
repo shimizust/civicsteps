@@ -18,13 +18,26 @@ export async function getProfile(db: DB, userId: string) {
   return data;
 }
 
-/** Labels of the user's areas whose recent items are still being pulled in (see lib/coverage.ts). */
-export async function pendingAreas(db: DB, areas: { scope: string; label: string }[]): Promise<string[]> {
+type CoverageRow = Pick<Database["public"]["Tables"]["ingest_coverage"]["Row"],
+  "backfilled_at" | "progress" | "progress_at" | "items_found" | "items_analyzed" | "items_failed">;
+
+export type AreaProgress = CoverageRow & { scope: string; label: string };
+
+export async function getAreaProgress(db: DB, areas: { scope: string; label: string }[]): Promise<AreaProgress[] | null> {
   if (!areas.length) return [];
-  const { data, error } = await db.from("ingest_coverage").select("scope, backfilled_at").in("scope", areas.map((a) => a.scope));
-  if (error) return [];
-  const done = new Set(data.filter((r) => r.backfilled_at).map((r) => r.scope));
-  return areas.filter((a) => !done.has(a.scope)).map((a) => a.label);
+  const { data, error } = await db.from("ingest_coverage")
+    .select("scope, backfilled_at, progress, progress_at, items_found, items_analyzed, items_failed")
+    .in("scope", areas.map((a) => a.scope));
+  if (error) {
+    console.error("coverage progress lookup failed", error.message);
+    return null;
+  }
+  const rows = new Map(data.map((r) => [r.scope, r]));
+  return areas.map((area) => ({
+    backfilled_at: null, progress: null, progress_at: null, items_found: null, items_analyzed: null, items_failed: null,
+    ...rows.get(area.scope),
+    ...area,
+  }));
 }
 
 export async function getInterests(db: DB, userId: string): Promise<(Interest & { id: string })[]> {
