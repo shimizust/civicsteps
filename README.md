@@ -79,10 +79,21 @@ If your city publishes council agendas on Legistar (`<city>.legistar.com`), add 
 
 ## Deploying
 
-1. Create a Supabase project and run the migrations (`npx supabase link && npx supabase db push`), then load `supabase/seed.sql`. In Auth settings, set the Site URL and add `<your-site>/auth/callback` as a redirect URL.
-2. Deploy the Next.js app (for example on Vercel) with the variables from `.env.example`.
-3. Add the same secrets to GitHub (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `API_DATA_GOV_KEY`, `OPENSTATES_API_KEY`, `RESEND_API_KEY`) and the variables `SITE_URL` and `EMAIL_FROM`. `.github/workflows/ingest.yml` then runs ingestion and email alerts nightly.
-4. Optional: to backfill a new user's state immediately, create a fine-grained GitHub token with "Actions: write" on the repo and set `INGEST_DISPATCH_TOKEN` and `INGEST_DISPATCH_REPO` on the app.
+Free tiers of Supabase and Vercel are enough for a personal or small instance. The nightly ingest also keeps a free Supabase project from pausing.
+
+1. **Database.** `npx supabase login`, then:
+   ```bash
+   npx supabase projects create civicsteps --region us-west-1 --db-password '<strong password>'
+   npx supabase link --project-ref <ref>
+   npx supabase db push --include-seed        # migrations + supabase/seed.sql
+   npx supabase projects api-keys --project-ref <ref>
+   ```
+   In Auth → URL Configuration, set the Site URL to your app's URL and add `<your-site>/auth/callback` as a redirect URL. Don't run `supabase config push`, because `supabase/config.toml` holds localhost settings.
+2. **App.** Import the repo on Vercel (or `npx vercel link && npx vercel git connect`) and add the variables from `.env.example` for Production. Pushes to `main` then deploy automatically.
+3. **Nightly jobs.** Add GitHub secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `API_DATA_GOV_KEY`, `OPENSTATES_API_KEY` (and `RESEND_API_KEY` for emails), and variables `SITE_URL` and `EMAIL_FROM`. `.github/workflows/ingest.yml` then runs ingestion and email alerts nightly; it skips itself until the secrets exist. For a first load: `gh workflow run ingest.yml -f args="--limit=40 --wait"`.
+4. **Optional:** to backfill a new user's state immediately, create a fine-grained GitHub token with "Actions: write" on the repo and set `INGEST_DISPATCH_TOKEN` and `INGEST_DISPATCH_REPO` on the app.
+
+Supabase's built-in email only delivers magic links to members of your Supabase organization, a few per hour. To let anyone sign in, configure custom SMTP (for example Resend) under Auth → SMTP Settings.
 
 ## Layout
 
