@@ -1,9 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { ExternalLink, Phone } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { contactsOf } from "@/lib/civic/officials";
+import { BackLink } from "@/components/BackLink";
 import { OfficialCard } from "@/components/OfficialCard";
-import { Card, Empty, PageTitle, Pill, SectionTitle } from "@/components/ui";
+import { Card, Empty, Kicker, LEVEL_LABEL, Pill, SectionTitle } from "@/components/ui";
 
 export default async function RepPage({ params }: { params: Promise<{ id: string }> }) {
   const id = decodeURIComponent((await params).id);
@@ -14,7 +16,7 @@ export default async function RepPage({ params }: { params: Promise<{ id: string
     supabase.from("officials").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("item_officials")
-      .select("role, vote, items!inner(id, title, status, last_action_at, level)")
+      .select("role, vote, items!inner(id, title, status, last_action_at, level, item_analysis(headline))")
       .eq("official_id", id)
       .order("last_action_at", { referencedTable: "items", ascending: false })
       .limit(25),
@@ -24,9 +26,8 @@ export default async function RepPage({ params }: { params: Promise<{ id: string
 
   return (
     <div>
-      <Link href="/reps" className="text-sm text-muted hover:text-accent">← All representatives</Link>
-      <div className="mt-4"><PageTitle>{o.name}</PageTitle></div>
-      <OfficialCard o={o} />
+      <BackLink fallbackHref="/reps" fallbackLabel="All representatives" className="mb-4" />
+      <OfficialCard o={o} hero />
 
       {c.offices && c.offices.length > 0 && (
         <>
@@ -36,26 +37,65 @@ export default async function RepPage({ params }: { params: Promise<{ id: string
               <Card key={i} className="text-sm">
                 <p className="font-medium">{off.name}</p>
                 {off.address && <p className="mt-1 text-muted">{off.address}</p>}
-                {off.phone && <a className="mt-1 block text-accent" href={`tel:${off.phone.replace(/[^\d+]/g, "")}`}>{off.phone}</a>}
+                {off.phone && (
+                  <a
+                    className="mt-1.5 inline-flex items-center gap-1.5 rounded text-accent tabular-nums hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    href={`tel:${off.phone.replace(/[^\d+]/g, "")}`}
+                  >
+                    <Phone className="h-3.5 w-3.5" aria-hidden />
+                    {off.phone}
+                  </a>
+                )}
               </Card>
             ))}
           </div>
         </>
       )}
-      {c.website && <p className="mt-4 text-sm"><a className="text-accent underline" href={c.website} target="_blank" rel="noreferrer">Official website ↗</a></p>}
+
+      {c.website && (
+        <p className="mt-4 text-sm">
+          <a
+            className="inline-flex items-center gap-1.5 rounded text-accent underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            href={c.website}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Official website <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        </p>
+      )}
 
       <SectionTitle hint="Most recent first">Recent activity</SectionTitle>
       {activity?.length ? (
-        <ul className="space-y-2">
-          {activity.map((a) => (
-            <li key={`${a.items.id}-${a.role}`}>
-              <Link href={`/items/${a.items.id}`} className="block rounded-lg border border-line bg-card p-3 hover:border-accent">
-                <div className="flex flex-wrap gap-1.5"><Pill tone="accent">{a.role}{a.vote ? `: ${a.vote}` : ""}</Pill></div>
-                <p className="mt-1 text-sm font-medium">{a.items.title}</p>
-                {a.items.status && <p className="text-xs text-muted">{a.items.status}</p>}
-              </Link>
-            </li>
-          ))}
+        <ul className="space-y-2.5">
+          {activity.map((a) => {
+            const headline = a.items.item_analysis?.headline?.trim() || a.items.title;
+            const showRaw = headline !== a.items.title;
+            return (
+              <li key={`${a.items.id}-${a.role}`}>
+                <Link
+                  href={`/items/${a.items.id}`}
+                  className="block rounded-xl border border-line bg-card p-3.5 transition hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <Kicker>{LEVEL_LABEL[a.items.level]}</Kicker>
+                    <Pill tone="accent" className="capitalize">
+                      {a.role}
+                      {a.vote ? `: ${a.vote}` : ""}
+                    </Pill>
+                    {a.items.last_action_at && (
+                      <span className="ml-auto text-xs tabular-nums text-muted">
+                        {new Date(a.items.last_action_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 font-medium leading-snug">{headline}</p>
+                  {showRaw && <p className="mt-0.5 truncate text-xs text-muted">{a.items.title}</p>}
+                  {a.items.status && <p className="mt-1 text-xs text-muted">{a.items.status}</p>}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <Empty>No tracked activity yet. Sponsorships appear here as bills are ingested.</Empty>

@@ -61,14 +61,16 @@ export async function saveZip(input: string): Promise<ZipResult> {
   ].filter((x): x is string => !!x);
   revalidatePath("/reps");
   revalidatePath("/feed");
+  revalidatePath("/profile");
   return { ok: true, zip: d.zip, summary, officials: count, stateLookup, coverage };
 }
-
 
 export async function saveDemographics(d: Demographics) {
   const { supabase, user } = await me();
   const parsed = cleanDemographics(d);
   await supabase.from("profiles").upsert({ user_id: user.id, demographics: parsed }, { onConflict: "user_id" });
+  revalidatePath("/feed");
+  revalidatePath("/profile");
 }
 
 export async function saveTopics(slugs: string[]) {
@@ -81,6 +83,8 @@ export async function saveTopics(slugs: string[]) {
       valid.map((slug) => ({ user_id: user.id, label: TOPICS.find((t) => t.slug === slug)!.name, topic_slugs: [slug], is_pet: false })),
     );
   }
+  revalidatePath("/feed");
+  revalidatePath("/profile");
 }
 
 export type PetIssue = { id: string; label: string; topic_slugs: string[]; keywords: string[] };
@@ -99,6 +103,8 @@ export async function addPetIssue(label: string): Promise<{ ok: true; issue: Pet
     .select("id, label, topic_slugs, keywords")
     .single();
   if (error) return { ok: false, error: "Couldn't save that issue." };
+  revalidatePath("/feed");
+  revalidatePath("/profile");
   return { ok: true, issue: data };
 }
 
@@ -106,18 +112,24 @@ export async function updatePetKeywords(id: string, keywords: string[]) {
   const { supabase, user } = await me();
   const clean = [...new Set(keywords.map((k) => k.toLowerCase().trim()).filter((k) => k.length >= 3))].slice(0, 15);
   await supabase.from("user_interests").update({ keywords: clean }).eq("id", id).eq("user_id", user.id);
+  revalidatePath("/feed");
+  revalidatePath("/profile");
 }
 
 export async function removeInterest(id: string) {
   const { supabase, user } = await me();
   await supabase.from("user_interests").delete().eq("id", id).eq("user_id", user.id);
+  revalidatePath("/feed");
+  revalidatePath("/profile");
 }
 
-export async function finishOnboarding(prefs: { alerts: boolean; digest: boolean }) {
+export async function finishOnboarding(prefs: { alerts: boolean; digest: boolean }, dest: "/feed" | "/profile" = "/feed") {
   const { supabase, user } = await me();
+  const target = dest === "/profile" ? "/profile" : "/feed";
   await supabase
     .from("profiles")
     .upsert({ user_id: user.id, notify_alerts: prefs.alerts, notify_digest: prefs.digest, onboarded_at: new Date().toISOString() }, { onConflict: "user_id" });
   revalidatePath("/feed");
-  redirect("/feed");
+  revalidatePath("/profile");
+  redirect(target);
 }

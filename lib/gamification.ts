@@ -123,12 +123,50 @@ export function weeklyStreak(actions: Pick<ActionRecord, "type" | "created_at">[
   return streak;
 }
 
+export type BadgeProgress = { current: number; target: number; unit: string };
+
+export function badgeProgress(slug: string, ctx: BadgeContext): BadgeProgress {
+  switch (slug) {
+    case "first-contact":
+      return { current: ctx.actions.some(voice) ? 1 : 0, target: 1, unit: "action" };
+    case "well-informed":
+      return { current: Math.min(20, distinctItems(ctx.actions.filter((a) => a.type === "read"))), target: 20, unit: "summaries read" };
+    case "comment-champion":
+      return {
+        current: Math.min(5, distinctItems(ctx.actions.filter((a) => a.type === "commented" && a.item_type === "comment_period"))),
+        target: 5,
+        unit: "comments",
+      };
+    case "all-three-levels": {
+      const levels = new Set(
+        ctx.actions
+          .filter(voice)
+          .map((a) => (a.item_level === "county" ? "city" : a.item_level))
+          .filter((l): l is "city" | "state" | "federal" => l === "city" || l === "state" || l === "federal"),
+      );
+      return { current: levels.size, target: 3, unit: "levels" };
+    }
+    case "pet-issue-guardian":
+      return {
+        current: ctx.petTopics.length
+          ? Math.min(3, distinctItems(ctx.actions.filter((a) => voice(a) && a.item_topics.some((t) => ctx.petTopics.includes(t)))))
+          : 0,
+        target: 3,
+        unit: "actions",
+      };
+    case "steady-voice":
+      return { current: Math.min(4, weeklyStreak(ctx.actions, ctx.now)), target: 4, unit: "weeks" };
+    default:
+      return { current: 0, target: 1, unit: "goal" };
+  }
+}
+
 export function newlyEarnedBadges(ctx: BadgeContext, alreadyHave: string[]): BadgeDef[] {
   const have = new Set(alreadyHave);
   return BADGES.filter((b) => !have.has(b.slug) && b.earned(ctx));
 }
 
-export function levelForPoints(points: number): { level: number; title: string; next: number | null } {
+export function levelForPoints(points: number): { level: number; title: string; current: number; next: number | null } {
   const tiers = [
     { at: 0, title: "Newcomer" },
     { at: 25, title: "Engaged Neighbor" },
@@ -138,5 +176,5 @@ export function levelForPoints(points: number): { level: number; title: string; 
   ];
   let i = 0;
   while (i + 1 < tiers.length && points >= tiers[i + 1].at) i++;
-  return { level: i + 1, title: tiers[i].title, next: tiers[i + 1]?.at ?? null };
+  return { level: i + 1, title: tiers[i].title, current: tiers[i].at, next: tiers[i + 1]?.at ?? null };
 }

@@ -4,12 +4,12 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Sparkles } from "lucide-react";
 import type { Assessment, Verdict } from "@/lib/ai/assess";
 import type { AssessResponse } from "@/app/api/assess/route";
 import { FACETS } from "@/lib/taxonomy";
-import { Button, Card, cx } from "@/components/ui";
+import { Button, Card, Kicker, cx } from "@/components/ui";
 import { FactQuestion } from "@/components/FactQuestion";
 
 const VERDICT: Record<Verdict, { label: string; tone: string }> = {
   benefit: { label: "Likely helps you", tone: "bg-benefit-soft text-benefit" },
-  cost: { label: "Likely costs you", tone: "bg-urgent-soft text-urgent" },
+  cost: { label: "Likely costs you", tone: "bg-cost-soft text-cost" },
   mixed: { label: "Mixed for you", tone: "bg-accent-soft text-accent" },
   neutral: { label: "Barely affects you", tone: "bg-paper text-muted border border-line" },
   unclear: { label: "Depends on details", tone: "bg-paper text-muted border border-line" },
@@ -17,25 +17,28 @@ const VERDICT: Record<Verdict, { label: string; tone: string }> = {
 
 const DIR = {
   benefit: { Icon: ArrowUp, tone: "text-benefit", label: "helps" },
-  cost: { Icon: ArrowDown, tone: "text-urgent", label: "costs" },
+  cost: { Icon: ArrowDown, tone: "text-cost", label: "costs" },
   mixed: { Icon: ArrowUpDown, tone: "text-muted", label: "mixed" },
 };
 
 /**
  * On-demand personal assessment. `initial` is the latest cached one, made from the answers hashed as `initialHash`.
- * When the user's answers change (`currentHash`, recomputed by the page after each answer), the button offers to
- * update it. A cache hit is free; a new run counts toward the daily limit.
+ * When `embedded` is true, renders cleanly as an inline extension inside the unified "How this affects you" card.
  */
 export function AssessPanel({
   itemId,
   initial,
   initialHash,
   currentHash,
+  embedded = false,
+  excludeFactKeys = [],
 }: {
   itemId: string;
   initial: Assessment | null;
   initialHash: string | null;
   currentHash: string;
+  embedded?: boolean;
+  excludeFactKeys?: string[];
 }) {
   const [result, setResult] = useState<Assessment | null>(initial);
   const [resultHash, setResultHash] = useState<string | null>(initialHash);
@@ -55,25 +58,31 @@ export function AssessPanel({
     });
 
   const showStale = !!result && resultHash !== currentHash;
+  const followUps = result ? result.follow_ups.filter((q) => !excludeFactKeys.includes(q.key)) : [];
 
-  return (
-    <Card className="mt-4">
+  const inner = (
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          <Sparkles className="h-4 w-4" aria-hidden /> Your situation
-        </h2>
-        {result && <span className={cx("rounded-full px-2.5 py-0.5 text-xs font-medium", VERDICT[result.overall].tone)}>{VERDICT[result.overall].label}</span>}
+        <Kicker className="inline-flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-accent" aria-hidden />
+          {embedded ? "Deeper look at your situation" : "Your situation"}
+        </Kicker>
+        {result && (
+          <span className={cx("rounded-full px-2.5 py-0.5 text-xs font-medium", VERDICT[result.overall].tone)}>
+            {VERDICT[result.overall].label}
+          </span>
+        )}
       </div>
 
       {!result && (
         <p className="mt-2 text-sm text-muted">
-          Want a closer look? We&apos;ll ask Claude how this would affect you, using your answers so far, and suggest questions that would sharpen it.
+          Want a closer look? We&apos;ll ask Claude how this would affect you using your answers so far, and suggest questions that would sharpen it.
         </p>
       )}
 
       {result && (
         <div className={cx(pending && "opacity-60")}>
-          <p className="mt-2 leading-relaxed">{result.summary}</p>
+          <p className="mt-2 text-sm leading-relaxed">{result.summary}</p>
           {result.points.length > 0 && (
             <ul className="mt-3 space-y-2">
               {result.points.map((p, i) => {
@@ -89,11 +98,11 @@ export function AssessPanel({
               })}
             </ul>
           )}
-          {result.follow_ups.length > 0 && (
-            <div className="mt-4 border-t border-line pt-2">
-              <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted">This would be clearer if we knew</p>
+          {followUps.length > 0 && (
+            <div className="mt-4 rounded-lg bg-paper px-3.5 pt-2.5">
+              <Kicker className="block pt-0.5">This would be clearer if we knew</Kicker>
               <div className="divide-y divide-line">
-                {result.follow_ups.map((q) => (
+                {followUps.map((q) => (
                   <FactQuestion key={q.key} q={{ ...q, kind: "fact" }} source="agent" itemId={itemId} />
                 ))}
               </div>
@@ -102,19 +111,24 @@ export function AssessPanel({
         </div>
       )}
 
-      {error && <p className="mt-3 text-sm text-urgent">{error}</p>}
+      {error && <p className="mt-3 text-sm text-cost">{error}</p>}
 
       {(!result || showStale) && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button type="button" variant={result ? "secondary" : "primary"} onClick={run} disabled={pending}>
+        <div className="mt-3.5 flex flex-wrap items-center gap-3">
+          <Button type="button" variant={result || embedded ? "secondary" : "primary"} onClick={run} disabled={pending}>
             {pending ? "Thinking…" : result ? "Update with my new answers" : "Ask about my situation"}
           </Button>
           <span className="text-xs text-muted">Sends your profile answers and city (never your ZIP code or name) to Claude.</span>
         </div>
       )}
-      {result && !showStale && (
+      {!embedded && result && !showStale && (
         <p className="mt-3 text-xs text-muted">AI estimate from the item text and your answers. It can be wrong; check the source before deciding.</p>
       )}
-    </Card>
+    </div>
   );
+
+  if (embedded) {
+    return <div className="mt-5 border-t border-line pt-4">{inner}</div>;
+  }
+  return <Card>{inner}</Card>;
 }

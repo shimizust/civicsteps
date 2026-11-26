@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { Check, ChevronRight, Clock, MapPin } from "lucide-react";
+import { Check, ChevronRight, Clock, MapPin, PenLine, Star } from "lucide-react";
 import type { Ranked } from "@/lib/relevance";
 import { hasDirection } from "@/lib/impact";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Place } from "@/lib/data";
 import { formatMiles } from "@/lib/locations";
-import { Card, LEVEL_LABEL, Pill, cx, deadlineLabel } from "@/components/ui";
+import { Card, Kicker, LEVEL_LABEL, Pill, cx, deadlineLabel } from "@/components/ui";
 import { TopicTile } from "@/components/TopicTile";
 import { ImpactBadge, ImpactChip } from "@/components/ImpactMeter";
 import { RepAvatars } from "@/components/RepAvatars";
+import { RelevanceVote } from "@/components/RelevanceVote";
 import { enactmentDate } from "@/lib/enactment";
 
 type Official = Database["public"]["Tables"]["officials"]["Row"];
@@ -30,11 +31,15 @@ export function ItemCard({
   reps = [],
   variant = "default",
   place,
+  showVote = false,
+  onVote,
 }: {
   r: Ranked;
   reps?: Official[];
   variant?: "default" | "hero" | "compact";
   place?: Place;
+  showVote?: boolean;
+  onVote?: (itemId: string, value: boolean | null) => void;
 }) {
   const { item, analysis, impact } = r;
   const headline = analysis.headline?.trim() || item.title;
@@ -49,8 +54,11 @@ export function ItemCard({
 
   if (variant === "compact") {
     return (
-      <Link href={`/items/${item.id}`} className="group block">
-        <Card className="flex items-center gap-3 !p-3 transition group-hover:border-accent">
+      <Link
+        href={`/items/${item.id}`}
+        className="group block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <Card className="flex items-center gap-3 !p-3 transition group-hover:border-accent group-hover:shadow-[var(--shadow-card-hover)]">
           <TopicTile topics={analysis.topics} size="sm" />
           <p className="min-w-0 flex-1 truncate font-medium group-hover:text-accent">{headline}</p>
           <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-benefit">
@@ -62,63 +70,94 @@ export function ItemCard({
   }
 
   return (
-    <Link href={`/items/${item.id}`} className="group block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-      <Card
-        className={cx(
-          "flex h-full gap-4 transition duration-150 group-hover:-translate-y-0.5 group-hover:border-accent group-hover:shadow-lg group-hover:shadow-black/5",
-          r.petMatch && "border-pet/40",
-          hero && "sm:p-6",
-        )}
-      >
-        <TopicTile topics={analysis.topics} pet={r.petMatch} size={hero ? "lg" : "md"} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <Pill>{LEVEL_LABEL[item.level]}</Pill>
-            <Pill>{typeLabel(item)}</Pill>
-            {label && (
-              <Pill tone={urgent ? "urgent" : "accent"}>
-                <Clock className="h-3 w-3" aria-hidden />
-                {label}
+    <Card
+      className={cx(
+        "group relative flex h-full gap-3.5 transition duration-150 hover:-translate-y-0.5 hover:border-accent hover:shadow-[var(--shadow-card-hover)] sm:gap-4",
+        r.petMatch && "border-pet/40",
+        hero && "sm:p-6",
+      )}
+    >
+      <TopicTile topics={analysis.topics} pet={r.petMatch} size={hero ? "lg" : "md"} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          <Kicker className="tabular-nums">
+            {LEVEL_LABEL[item.level]} · {typeLabel(item)}
+          </Kicker>
+          {r.petMatch && hero && (
+            <Pill tone="pet">
+              <Star className="h-3 w-3 fill-current" aria-hidden /> Pet issue
+            </Pill>
+          )}
+          {label && (
+            <Pill tone={urgent ? "urgent" : "accent"} className="tabular-nums">
+              <Clock className="h-3 w-3" aria-hidden />
+              {label}
+            </Pill>
+          )}
+          {place && (
+            <span title={`${place.address}, measured from the middle of your ZIP`}>
+              <Pill tone="neutral" className="tabular-nums">
+                <MapPin className="h-3 w-3" aria-hidden />
+                {formatMiles(place.miles)} from you
               </Pill>
-            )}
-            {place && (
-              <span title={`${place.address}, measured from the middle of your ZIP`}>
-                <Pill tone={place.miles < 1 ? "urgent" : "neutral"}>
-                  <MapPin className="h-3 w-3" aria-hidden />
-                  {formatMiles(place.miles)} from you
-                </Pill>
-              </span>
-            )}
-          </div>
+            </span>
+          )}
+        </div>
 
-          <h3
-            className={cx("mt-2 line-clamp-3 font-display font-semibold leading-snug tracking-tight group-hover:text-accent", hero ? "text-2xl" : "text-lg")}
-            title={showTitle ? undefined : item.title}
+        <h3
+          className={cx("mt-2 line-clamp-3 font-display font-semibold leading-snug tracking-tight", hero ? "text-xl sm:text-2xl" : "text-lg")}
+          title={showTitle ? undefined : item.title}
+        >
+          <Link
+            href={`/items/${item.id}`}
+            className="rounded-sm after:absolute after:inset-0 after:rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent group-hover:text-accent"
           >
             {headline}
-          </h3>
-          {showTitle && <p className="mt-0.5 truncate text-xs text-muted" title={item.title}>{item.title}</p>}
-          {summary && <p className={cx("mt-2 text-sm text-muted", hero ? "line-clamp-3" : "line-clamp-2")}>{summary}</p>}
+          </Link>
+        </h3>
+        {showTitle && <p className="mt-0.5 truncate text-xs text-muted" title={item.title}>{item.title}</p>}
+        {summary && <p className={cx("mt-2 text-sm leading-relaxed text-muted", hero ? "line-clamp-3" : "line-clamp-2")}>{summary}</p>}
 
-          {(facets.length > 0 || impact.level) && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              {facets.map((f) => <ImpactChip key={f.facet} f={f} showDirection={showDir} />)}
-              <span className="ml-auto pl-2"><ImpactBadge impact={impact} /></span>
-            </div>
-          )}
-          {!facets.length && r.reasons.length > 0 && (
-            <p className="mt-2 text-xs text-muted">Why you&apos;re seeing this: {r.reasons.slice(0, 3).join(" · ")}</p>
-          )}
+        {(facets.length > 0 || impact.level) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {facets.map((f) => <ImpactChip key={f.facet} f={f} showDirection={showDir} />)}
+            <span className="ml-auto pl-2"><ImpactBadge impact={impact} /></span>
+          </div>
+        )}
+        {!facets.length && r.reasons.length > 0 && (
+          <p className="mt-2 text-xs text-muted">Why you&apos;re seeing this: {r.reasons.slice(0, 3).join(" · ")}</p>
+        )}
 
-          <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+        <div className="mt-auto pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line/70 pt-3">
             <RepAvatars officials={reps} />
-            <span className="ml-auto inline-flex shrink-0 items-center text-sm font-medium text-accent">
-              See details
-              <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
-            </span>
+            <div className="relative z-10 ml-auto flex items-center gap-2">
+              {showVote && (
+                <RelevanceVote
+                  itemId={item.id}
+                  current={r.vote}
+                  source="feed"
+                  compact
+                  onVote={(v) => onVote?.(item.id, v)}
+                />
+              )}
+              {hero && open && (
+                <Link
+                  href={`/draft/${item.id}${item.type === "comment_period" ? "?kind=public_comment" : ""}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent dark:text-paper"
+                >
+                  <PenLine className="h-3.5 w-3.5" aria-hidden />
+                  {item.type === "comment_period" ? "Draft comment" : "Speak up"}
+                </Link>
+              )}
+              <span className="pointer-events-none inline-flex shrink-0 items-center text-sm font-medium text-accent" aria-hidden>
+                Details
+                <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+              </span>
+            </div>
           </div>
         </div>
-      </Card>
-    </Link>
+      </div>
+    </Card>
   );
 }

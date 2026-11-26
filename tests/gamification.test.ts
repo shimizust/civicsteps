@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { levelForPoints, newlyEarnedBadges, weeklyStreak, type ActionRecord } from "@/lib/gamification";
+import { badgeProgress, levelForPoints, newlyEarnedBadges, weeklyStreak, type ActionRecord } from "@/lib/gamification";
 
 const now = new Date("2026-11-20T12:00:00Z"); // a Friday
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
@@ -38,9 +38,28 @@ describe("badges", () => {
 });
 
 describe("levelForPoints", () => {
-  it("steps through tiers", () => {
-    expect(levelForPoints(0).title).toBe("Newcomer");
-    expect(levelForPoints(30)).toMatchObject({ level: 2, next: 100 });
-    expect(levelForPoints(10_000).next).toBeNull();
+  it("steps through tiers with current floor", () => {
+    expect(levelForPoints(0)).toMatchObject({ level: 1, title: "Newcomer", current: 0, next: 25 });
+    expect(levelForPoints(30)).toMatchObject({ level: 2, current: 25, next: 100 });
+    expect(levelForPoints(250)).toMatchObject({ level: 4, current: 250, next: 600 });
+    expect(levelForPoints(10_000)).toMatchObject({ level: 5, current: 600, next: null });
+  });
+});
+
+describe("badgeProgress", () => {
+  it("computes progress for each badge", () => {
+    const actions = [
+      act({ type: "read", item_id: "r1" }),
+      act({ type: "read", item_id: "r2" }),
+      act({ type: "commented", item_id: "c1", item_type: "comment_period", item_level: "federal" }),
+      act({ type: "emailed", item_id: "p1", item_level: "county", item_topics: ["public-lands/climbing-access", "public-lands"] }),
+    ];
+    const ctx = { actions, petTopics: ["public-lands/climbing-access"], now };
+    expect(badgeProgress("first-contact", ctx)).toEqual({ current: 1, target: 1, unit: "action" });
+    expect(badgeProgress("well-informed", ctx)).toEqual({ current: 2, target: 20, unit: "summaries read" });
+    expect(badgeProgress("comment-champion", ctx)).toEqual({ current: 1, target: 5, unit: "comments" });
+    expect(badgeProgress("all-three-levels", ctx)).toEqual({ current: 2, target: 3, unit: "levels" });
+    expect(badgeProgress("pet-issue-guardian", ctx)).toEqual({ current: 1, target: 3, unit: "actions" });
+    expect(badgeProgress("steady-voice", ctx)).toEqual({ current: 1, target: 4, unit: "weeks" });
   });
 });

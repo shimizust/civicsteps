@@ -2,10 +2,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { buildFeed, learnTopicAffinity, type Candidate, type FeedAnalysis, type FeedItem, type Interest } from "@/lib/relevance";
-import { groupsForDemographics, type Demographics } from "@/lib/taxonomy";
+import { expandTopics, groupsForDemographics, type Demographics } from "@/lib/taxonomy";
 import type { Answers, Fact, Registry } from "@/lib/facts";
 import type { ImpactInput } from "@/lib/impact";
-import { levelForPoints, weeklyStreak, VOICE_ACTIONS, type ActionType } from "@/lib/gamification";
+import { badgeProgress, levelForPoints, weeklyStreak, VOICE_ACTIONS, type ActionRecord, type ActionType, type ItemType, type Level } from "@/lib/gamification";
 import { nearest, type Point } from "@/lib/locations";
 
 /** The nearest site an item names, for the "1.2 mi from you" chip. */
@@ -164,30 +164,104 @@ export type BrowseRow = {
   vote: boolean | null;
 };
 
+function mapBrowseRows(
+  data: {
+    item: unknown;
+    analysis: unknown;
+    my_official_ids: string[] | null;
+    in_area: boolean;
+    active: boolean;
+    relevant: boolean | null;
+  }[],
+): BrowseRow[] {
+  return data.map((r) => ({
+    item: r.item as unknown as FeedItem,
+    analysis: r.analysis as unknown as FeedAnalysis,
+    my_official_ids: r.my_official_ids ?? [],
+    inArea: r.in_area,
+    active: r.active,
+    vote: r.relevant ?? null,
+  }));
+}
+
 /** Every indexed item, searchable, for the Browse page. */
 export async function browseItems(
   db: DB,
-  opts: { query?: string; level?: string | null; scope?: "area" | "all"; page?: number },
+  opts: { query?: string; level?: string | null; scope?: "area" | "all"; topic?: string | null; sort?: "recent" | "deadline"; page?: number },
 ): Promise<{ rows: BrowseRow[]; total: number }> {
   const page = Math.max(0, opts.page ?? 0);
-  const { data, error } = await db.rpc("browse_items", {
+  const needsClientFilterOrSort = !!opts.topic || opts.sort === "deadline";
+
+  if (!needsClientFilterOrSort) {
+    const { data, error } = await db.rpc("browse_items", {
+      p_query: opts.query?.trim() || undefined,
+      p_level: opts.level ?? undefined,
+      p_scope: opts.scope ?? "area",
+      p_limit: BROWSE_PAGE_SIZE,
+      p_offset: page * BROWSE_PAGE_SIZE,
+    });
+    if (error) throw error;
+    return {
+      total: data?.[0]?.total_count ?? 0,
+      rows: mapBrowseRows(data ?? []),
+    };
+  }
+
+  const first = await db.rpc("browse_items", {
     p_query: opts.query?.trim() || undefined,
     p_level: opts.level ?? undefined,
     p_scope: opts.scope ?? "area",
-    p_limit: BROWSE_PAGE_SIZE,
-    p_offset: page * BROWSE_PAGE_SIZE,
+    p_limit: 100,
+    p_offset: 0,
   });
-  if (error) throw error;
+  if (first.error) throw first.error;
+  const totalCount = first.data?.[0]?.total_count ?? 0;
+  const extraOffsets = [100, 200].filter((off) => totalCount > off);
+  const extraPages = await Promise.all(
+    extraOffsets.map((offset) =>
+      db.rpc("browse_items", {
+        p_query: opts.query?.trim() || undefined,
+        p_level: opts.level ?? undefined,
+        p_scope: opts.scope ?? "area",
+        p_limit: 100,
+        p_offset: offset,
+      }),
+    ),
+  );
+  for (const res of extraPages) {
+    if (res.error) throw res.error;
+  }
+
+  let rows = mapBrowseRows([...(first.data ?? []), ...extraPages.flatMap((res) => res.data ?? [])]);
+  if (opts.topic) {
+    rows = rows.filter((r) => expandTopics(r.analysis.topics).includes(opts.topic!));
+  }
+  if (opts.sort === "deadline") {
+    const nowMs = Date.now();
+    const upcomingMs = (r: BrowseRow) => {
+      const raw = r.item.comment_deadline ?? r.item.event_at;
+      if (!raw) return null;
+      const ms = Date.parse(raw);
+      return Number.isFinite(ms) && ms >= nowMs ? ms : null;
+    };
+    const activityMs = (r: BrowseRow) => {
+      const raw = r.item.comment_deadline ?? r.item.event_at ?? r.item.last_action_at;
+      return raw ? Date.parse(raw) || 0 : 0;
+    };
+    rows.sort((a, b) => {
+      const da = upcomingMs(a);
+      const db = upcomingMs(b);
+      if (da !== null && db !== null) return da - db;
+      if (da !== null) return -1;
+      if (db !== null) return 1;
+      return Number(b.active) - Number(a.active) || activityMs(b) - activityMs(a);
+    });
+  }
+
+  const start = page * BROWSE_PAGE_SIZE;
   return {
-    total: data?.[0]?.total_count ?? 0,
-    rows: (data ?? []).map((r) => ({
-      item: r.item as unknown as FeedItem,
-      analysis: r.analysis as unknown as FeedAnalysis,
-      my_official_ids: r.my_official_ids ?? [],
-      inArea: r.in_area,
-      active: r.active,
-      vote: r.relevant ?? null,
-    })),
+    total: rows.length,
+    rows: rows.slice(start, start + BROWSE_PAGE_SIZE),
   };
 }
 
@@ -213,20 +287,40 @@ export async function getItem(db: DB, id: string) {
 }
 
 export async function getStats(db: DB, userId: string) {
-  const [points, badges, allBadges, actions] = await Promise.all([
+  const [points, badges, allBadges, actions, pets] = await Promise.all([
     db.from("points_ledger").select("points").eq("user_id", userId),
     db.from("user_badges").select("badge_slug, awarded_at").eq("user_id", userId),
     db.from("badges").select("*").order("slug"),
-    db.from("user_actions").select("type, created_at").eq("user_id", userId),
+    db
+      .from("user_actions")
+      .select("type, created_at, item_id, items(level, type, item_analysis(topics))")
+      .eq("user_id", userId),
+    db.from("user_interests").select("topic_slugs").eq("user_id", userId).eq("is_pet", true),
   ]);
   const total = (points.data ?? []).reduce((s, p) => s + p.points, 0);
   const earned = new Map((badges.data ?? []).map((b) => [b.badge_slug, b.awarded_at]));
-  const acts = (actions.data ?? []) as { type: ActionType; created_at: string }[];
+  const acts: ActionRecord[] = (actions.data ?? []).map((a) => ({
+    type: a.type as ActionType,
+    created_at: a.created_at,
+    item_id: a.item_id,
+    item_level: (a.items?.level ?? null) as Level | null,
+    item_type: (a.items?.type ?? null) as ItemType | null,
+    item_topics: expandTopics(a.items?.item_analysis?.topics ?? []),
+  }));
+  const ctx = {
+    actions: acts,
+    petTopics: (pets.data ?? []).flatMap((p) => p.topic_slugs),
+    now: new Date(),
+  };
   return {
     points: total,
     level: levelForPoints(total),
-    streak: weeklyStreak(acts, new Date()),
+    streak: weeklyStreak(acts, ctx.now),
     voiceCount: acts.filter((a) => VOICE_ACTIONS.includes(a.type)).length,
-    badges: (allBadges.data ?? []).map((b) => ({ ...b, awarded_at: earned.get(b.slug) ?? null })),
+    badges: (allBadges.data ?? []).map((b) => ({
+      ...b,
+      awarded_at: earned.get(b.slug) ?? null,
+      progress: badgeProgress(b.slug, ctx),
+    })),
   };
 }

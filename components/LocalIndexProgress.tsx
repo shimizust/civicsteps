@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { Card } from "@/components/ui";
 import type { AreaProgress } from "@/lib/data";
 
@@ -33,7 +34,17 @@ function detail(area: AreaProgress, phase: string) {
   }
 }
 
-export function LocalIndexProgress({ areas, zip, now }: { areas: AreaProgress[] | null; zip: string | null; now: number }) {
+export function LocalIndexProgress({
+  areas,
+  zip,
+  now,
+  showWhenReady = false,
+}: {
+  areas: AreaProgress[] | null;
+  zip: string | null;
+  now: number;
+  showWhenReady?: boolean;
+}) {
   const router = useRouter();
   const rows = areas?.map((area) => ({ area, phase: status(area, now) }));
   const active = !rows || rows.some(({ phase }) => phase !== "ready");
@@ -53,25 +64,43 @@ export function LocalIndexProgress({ areas, zip, now }: { areas: AreaProgress[] 
   }, [active, working, router]);
 
   if (rows?.length === 0) return null;
+  if (!showWhenReady && rows && !active) return null;
+
   return (
-    <Card className="mb-6 text-sm">
-      <h2 className="font-semibold">Issue indexing{zip ? ` for ZIP ${zip}` : ""}</h2>
+    <Card className="mb-6 border-accent/30 bg-accent-soft/25 text-sm">
+      <div className="flex items-center gap-2">
+        {working && <Loader2 className="h-4 w-4 animate-spin text-accent" aria-hidden />}
+        <h2 className="font-semibold">Indexing recent items{zip ? ` for ZIP ${zip}` : ""}</h2>
+      </div>
       {rows ? (
-        <ul className="mt-2 space-y-2" aria-live="polite">
-          {rows.map(({ area, phase }) => (
-            <li key={area.scope}>
-              <div className="flex flex-wrap justify-between gap-x-4">
-                <span>{area.label}</span>
-                <span className="text-muted">{detail(area, phase)}</span>
-              </div>
-              {phase === "analyzing" && !!area.items_found && (
-                <progress className="mt-1 block h-2 w-full accent-accent" aria-label={`Items analyzed for ${area.label}`}
-                  max={area.items_found} value={area.items_analyzed ?? 0} />
-              )}
-            </li>
-          ))}
+        <ul className="mt-2.5 space-y-2.5" aria-live="polite">
+          {rows.map(({ area, phase }) => {
+            const pct = area.items_found ? Math.min(100, Math.round(((area.items_analyzed ?? 0) / area.items_found) * 100)) : 0;
+            return (
+              <li key={area.scope}>
+                <div className="flex flex-wrap justify-between gap-x-4 text-xs sm:text-sm">
+                  <span className="font-medium">{area.label}</span>
+                  <span className="tabular-nums text-muted">{detail(area, phase)}</span>
+                </div>
+                {phase === "analyzing" && !!area.items_found && (
+                  <div
+                    className="mt-1.5 h-2 overflow-hidden rounded-full bg-line"
+                    role="progressbar"
+                    aria-label={`Items analyzed for ${area.label}`}
+                    aria-valuemin={0}
+                    aria-valuemax={area.items_found}
+                    aria-valuenow={area.items_analyzed ?? 0}
+                  >
+                    <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
-      ) : <p className="mt-2 text-muted">Indexing status is temporarily unavailable.</p>}
+      ) : (
+        <p className="mt-2 text-muted">Indexing status is temporarily unavailable.</p>
+      )}
     </Card>
   );
 }

@@ -1,12 +1,12 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { FACETS } from "@/lib/taxonomy";
-import type { Direction, ImpactLevel, PersonalFacet, PersonalImpact } from "@/lib/impact";
+import { hasDirection, type Direction, type ImpactLevel, type PersonalFacet, type PersonalImpact } from "@/lib/impact";
 import { Icon } from "@/components/icons";
 import { cx } from "@/components/ui";
 
 const DIR = {
   benefit: { Icon: ArrowUp, label: "Likely helps", tone: "text-benefit", fill: "bg-benefit" },
-  cost: { Icon: ArrowDown, label: "Likely costs", tone: "text-urgent", fill: "bg-urgent" },
+  cost: { Icon: ArrowDown, label: "Likely costs", tone: "text-cost", fill: "bg-cost" },
   mixed: { Icon: ArrowUpDown, label: "Mixed or unclear", tone: "text-muted", fill: "bg-accent" },
 } satisfies Record<Direction, unknown>;
 
@@ -81,32 +81,48 @@ export function ImpactRow({ f, showDirection }: { f: PersonalFacet; showDirectio
   );
 }
 
-const LEVEL = {
-  high: { label: "High", tone: "text-urgent", ring: "var(--color-urgent)" },
-  medium: { label: "Medium", tone: "text-accent", ring: "var(--color-accent)" },
-  low: { label: "Low", tone: "text-muted", ring: "var(--color-muted)" },
-} satisfies Record<ImpactLevel, unknown>;
+const LEVEL_LABEL_MAP: Record<ImpactLevel, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
 
-/** "Affects you: High" with a small ring gauge (0-100). */
+function badgeColors(impact: PersonalImpact) {
+  if (!hasDirection(impact)) {
+    return impact.level === "low"
+      ? { tone: "text-muted", ring: "var(--color-muted)" }
+      : { tone: "text-accent", ring: "var(--color-accent)" };
+  }
+  const active = impact.facets.filter((f) => f.magnitude > 0 && !f.forOthers);
+  const pool = active.length ? active : impact.facets.filter((f) => f.magnitude > 0);
+  const benefitWeight = pool.filter((f) => f.direction === "benefit").reduce((s, f) => s + f.magnitude, 0);
+  const costWeight = pool.filter((f) => f.direction === "cost").reduce((s, f) => s + f.magnitude, 0);
+  if (benefitWeight > 0 && costWeight === 0) return { tone: "text-benefit", ring: "var(--color-benefit)" };
+  if (costWeight > 0 && benefitWeight === 0) return { tone: "text-cost", ring: "var(--color-cost)" };
+  return { tone: "text-accent", ring: "var(--color-accent)" };
+}
+
+/** "Affects you: High" with a small ring gauge (0-100), colored by net personal direction rather than deadline amber. */
 export function ImpactBadge({ impact, size = "sm" }: { impact: PersonalImpact; size?: "sm" | "lg" }) {
   if (!impact.level) return null;
-  const l = LEVEL[impact.level];
+  const label = LEVEL_LABEL_MAP[impact.level];
+  const { tone, ring } = badgeColors(impact);
   const px = size === "lg" ? 44 : 22;
   const r = px / 2 - (size === "lg" ? 4 : 2.5);
   const circ = 2 * Math.PI * r;
   const pct = Math.max(8, impact.overall) / 100;
   return (
-    <span className={cx("inline-flex items-center gap-2", size === "lg" ? "text-base" : "text-xs")}>
+    <span className={cx("inline-flex items-center gap-2 tabular-nums", size === "lg" ? "text-base" : "text-xs")}>
       <svg width={px} height={px} viewBox={`0 0 ${px} ${px}`} aria-hidden className="-rotate-90">
         <circle cx={px / 2} cy={px / 2} r={r} fill="none" stroke="var(--color-line)" strokeWidth={size === "lg" ? 5 : 3} />
         <circle
-          cx={px / 2} cy={px / 2} r={r} fill="none" stroke={l.ring} strokeWidth={size === "lg" ? 5 : 3}
+          cx={px / 2} cy={px / 2} r={r} fill="none" stroke={ring} strokeWidth={size === "lg" ? 5 : 3}
           strokeDasharray={`${circ * pct} ${circ}`} strokeLinecap="round"
         />
       </svg>
       <span>
         <span className="text-muted">Affects you: </span>
-        <strong className={l.tone}>{l.label}</strong>
+        <strong className={tone}>{label}</strong>
       </span>
     </span>
   );
