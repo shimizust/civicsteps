@@ -31,15 +31,21 @@ export default async function RepsPage() {
         if (!profile?.zip) return null;
         return (
           <section key={g.title}>
-            <SectionTitle>{g.title}</SectionTitle>
+            <SectionTitle hint={list.length ? `${list.length} ${list.length === 1 ? "official" : "officials"}` : undefined}>{g.title}</SectionTitle>
             {list.length ? (
-              <ul className="space-y-3">{list.map((o) => <li key={o.id}><OfficialCard o={o} /></li>)}</ul>
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {list.map((o) => (
+                  <li key={o.id}>
+                    <OfficialCard o={o} />
+                  </li>
+                ))}
+              </ul>
             ) : (
               <Empty>
                 {g.levels.includes("state" as never)
-                  ? "State legislators appear once the server has an Open States API key."
+                  ? "State legislator data isn't available for your area yet."
                   : g.levels.includes("city" as never)
-                    ? "Your city's council data isn't connected yet. Cities on Legistar can be added in ingest/legistar.config.ts."
+                    ? "City council officials and agendas aren't connected for your city yet."
                     : "No federal representatives found for this ZIP code."}
               </Empty>
             )}

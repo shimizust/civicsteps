@@ -10,10 +10,13 @@
   --color-accent-soft: #e3efe9;
   --color-urgent: #b4530b;
   --color-urgent-soft: #fbeedd;
+  --color-cost: #b43a2f;
+  --color-cost-soft: #fae8e6;
   --color-pet: #6a3fb5;
   --color-pet-soft: #efe8fb;
   --color-benefit: #23824a;
   --color-benefit-soft: #e2f3e8;
+  --shadow-card-hover: 0 12px 24px -12px rgba(28, 35, 33, 0.14);
   --font-display: var(--font-fraunces), Georgia, serif;
   --font-sans: var(--font-inter), system-ui, sans-serif;
 }
@@ -29,16 +32,34 @@
     --color-accent-soft: #173229;
     --color-urgent: #f0a35e;
     --color-urgent-soft: #3a2614;
+    --color-cost: #f0867b;
+    --color-cost-soft: #3a1f1d;
     --color-pet: #b896f0;
     --color-pet-soft: #2a2139;
     --color-benefit: #6fd39a;
     --color-benefit-soft: #16301f;
+    --shadow-card-hover: 0 12px 28px -10px rgba(0, 0, 0, 0.55);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
 
 body {
   background: var(--color-paper);
   color: var(--color-ink);
+}
+
+h1,
+h2 {
+  text-wrap: balance;
 }
 
 ::selection {

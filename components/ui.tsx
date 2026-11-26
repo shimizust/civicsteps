@@ -7,7 +7,7 @@ const buttonBase =
   "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 const variants = {
   primary: "bg-accent text-white hover:brightness-110 dark:text-paper",
-  secondary: "border border-line bg-card hover:border-accent",
+  secondary: "border border-line bg-card text-ink hover:border-accent",
   ghost: "text-accent hover:bg-accent-soft",
 };
 type Variant = keyof typeof variants;
@@ -24,14 +24,39 @@ export function Card({ className, ...p }: ComponentProps<"div">) {
   return <div className={cx("rounded-xl border border-line bg-card p-4 sm:p-5", className)} {...p} />;
 }
 
+export const inputClass =
+  "w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink placeholder:text-muted/80 transition focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
+
+export function Input({ className, ...p }: ComponentProps<"input">) {
+  return <input className={cx(inputClass, className)} {...p} />;
+}
+
+export function Textarea({ className, ...p }: ComponentProps<"textarea">) {
+  return <textarea className={cx(inputClass, className)} {...p} />;
+}
+
+export function Select({ className, ...p }: ComponentProps<"select">) {
+  return <select className={cx(inputClass, className)} {...p} />;
+}
+
 const pillTones = {
   neutral: "bg-paper text-muted border border-line",
   accent: "bg-accent-soft text-accent",
   urgent: "bg-urgent-soft text-urgent",
+  cost: "bg-cost-soft text-cost",
+  benefit: "bg-benefit-soft text-benefit",
   pet: "bg-pet-soft text-pet",
 };
 export function Pill({ tone = "neutral", children, className }: { tone?: keyof typeof pillTones; children: ReactNode; className?: string }) {
   return <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium", pillTones[tone], className)}>{children}</span>;
+}
+
+export function Kicker({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cx("text-[11px] font-semibold uppercase tracking-wider text-muted", className)}>{children}</span>;
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cx("animate-pulse rounded-lg bg-line/60", className)} aria-hidden />;
 }
 
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
