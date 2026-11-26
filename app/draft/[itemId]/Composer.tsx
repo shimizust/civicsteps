@@ -1,17 +1,16 @@
 "use client";
 import { useState, useTransition } from "react";
-import { copyablePrompt, STANCE_LABEL, type DraftKind, type Stance } from "@/lib/ai/draftPrompt";
+import { copyablePrompt, LAW_RESPONSE_IDS, LAW_RESPONSES, STANCE_LABEL, type DraftInput, type DraftKind, type LawResponse, type Stance } from "@/lib/ai/draftPrompt";
 import { logAction } from "@/app/actions";
 import { Button, Card, cx } from "@/components/ui";
 
 type Props = {
   aiEnabled: boolean;
   isComment: boolean;
-  item: { id: string; title: string; type: string; url: string | null; external_id: string; agency: string | null; comment_deadline: string | null; summary: string | null; action_url: string | null };
-  officials: { id: string; name: string; office: string }[];
+  item: DraftInput["item"] & { id: string; action_url: string | null };
+  officials: { id: string; name: string; office: string; email: string | null; form: string | null; phone: string | null }[];
   initialOfficialId: string | null;
   initialKind: DraftKind;
-  contact: { email: string | null; form: string | null; phone: string | null };
   place: string | null;
 };
 
@@ -19,6 +18,7 @@ export function Composer(p: Props) {
   const [kind, setKind] = useState<DraftKind>(p.initialKind);
   const [officialId, setOfficialId] = useState(p.initialOfficialId);
   const [stance, setStance] = useState<Stance>("support");
+  const [lawResponse, setLawResponse] = useState<LawResponse>();
   const [note, setNote] = useState("");
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"idle" | "streaming" | "error">("idle");
@@ -28,8 +28,9 @@ export function Composer(p: Props) {
   const [pending, start] = useTransition();
 
   const official = p.officials.find((o) => o.id === officialId) ?? null;
-  const input = { kind, stance, personalNote: note, item: p.item, official, place: p.place };
-  const noteOk = note.trim().length >= 10;
+  const isLaw = Boolean(p.item.enacted_at);
+  const input = { kind, stance, lawResponse, personalNote: note, item: p.item, official, place: p.place };
+  const ready = note.trim().length >= 10 && (!isLaw || !!lawResponse);
 
   async function generate() {
     setStatus("streaming");
@@ -38,7 +39,7 @@ export function Composer(p: Props) {
     const res = await fetch("/api/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId: p.item.id, officialId: kind === "public_comment" ? null : officialId, kind, stance, personalNote: note }),
+      body: JSON.stringify({ itemId: p.item.id, officialId: kind === "public_comment" ? null : officialId, kind, stance, lawResponse, personalNote: note }),
     });
     if (!res.ok || !res.body) {
       setStatus("error");
@@ -92,35 +93,48 @@ export function Composer(p: Props) {
         </label>
       )}
 
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium">Your position</legend>
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(STANCE_LABEL) as Stance[]).map((s) => <Seg key={s} on={stance === s} onClick={() => setStance(s)}>{STANCE_LABEL[s]}</Seg>)}
-        </div>
-      </fieldset>
+      {isLaw ? (
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">What would you like your legislator to do?</legend>
+          <p className="mb-3 text-sm text-muted">Choose a follow-up goal to pair with your personal story.</p>
+          <div className="flex flex-wrap gap-2">
+            {LAW_RESPONSE_IDS.map((response) => (
+              <Seg key={response} on={lawResponse === response} onClick={() => setLawResponse(response)}>{LAW_RESPONSES[response].label}</Seg>
+            ))}
+          </div>
+        </fieldset>
+      ) : (
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">Your position</legend>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(STANCE_LABEL) as Stance[]).map((s) => <Seg key={s} on={stance === s} onClick={() => setStance(s)}>{STANCE_LABEL[s]}</Seg>)}
+          </div>
+        </fieldset>
+      )}
 
       <label className="block text-sm font-medium">
         Why does this matter to you?
         <span className="block font-normal text-muted">
-          One or two sentences in your own words. This is what makes a message count: staff discount identical form letters.
+          {isLaw
+            ? "In a sentence or two, describe how the law affects you and what you want your legislator to address."
+            : "In a sentence or two, describe how this issue affects you."}
         </span>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           maxLength={600}
-          placeholder="e.g. I've climbed at Indian Creek every spring for ten years and volunteer on trail crews there."
           className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2 font-normal"
         />
       </label>
 
       <div className="flex flex-wrap gap-2">
         {p.aiEnabled && (
-          <Button onClick={generate} disabled={!noteOk || status === "streaming"}>
+          <Button onClick={generate} disabled={!ready || status === "streaming"}>
             {status === "streaming" ? "Writing…" : draft ? "Rewrite" : "Write my draft"}
           </Button>
         )}
-        <Button variant="secondary" disabled={!noteOk} onClick={() => copy(copyablePrompt(input), "prompt")}>
+        <Button variant="secondary" disabled={!ready} onClick={() => copy(copyablePrompt(input), "prompt")}>
           {copied === "prompt" ? "Copied!" : "Copy prompt for any AI"}
         </Button>
       </div>
@@ -143,11 +157,11 @@ export function Composer(p: Props) {
           <p className="font-medium">Send it</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => copy(draft, "draft")}>{copied === "draft" ? "Copied!" : "Copy message"}</Button>
-            {kind === "email" && p.contact.email && (
-              <a className={btn} href={`mailto:${p.contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}>Open in email app</a>
+            {kind === "email" && official?.email && (
+              <a className={btn} href={`mailto:${official.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}>Open in email app</a>
             )}
-            {kind === "email" && !p.contact.email && p.contact.form && <a className={btn} href={p.contact.form} target="_blank" rel="noreferrer">Open contact form ↗</a>}
-            {kind === "call_script" && p.contact.phone && <a className={btn} href={`tel:${p.contact.phone.replace(/[^\d+]/g, "")}`}>Call {p.contact.phone}</a>}
+            {kind === "email" && !official?.email && official?.form && <a className={btn} href={official.form} target="_blank" rel="noreferrer">Open contact form ↗</a>}
+            {kind === "call_script" && official?.phone && <a className={btn} href={`tel:${official.phone.replace(/[^\d+]/g, "")}`}>Call {official.phone}</a>}
             {kind === "public_comment" && p.item.action_url && <a className={btn} href={p.item.action_url} target="_blank" rel="noreferrer">Open comment form ↗</a>}
           </div>
           <div className="border-t border-line pt-3">
