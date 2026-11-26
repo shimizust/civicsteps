@@ -1,10 +1,12 @@
 name: Backfill new areas
-# Dispatched by the app (lib/coverage.ts) when a user saves a ZIP in a state we haven't ingested yet.
-# Each run backfills every state still missing, so a dispatch that gets superseded in the queue loses nothing.
+# Dispatched when a user saves a ZIP in a state or supported council area that needs indexing.
+# The nightly workflow shares this concurrency group because both write the same index.
 on:
   workflow_dispatch:
 
-concurrency: backfill
+concurrency:
+  group: ingest
+  queue: max
 
 jobs:
   backfill:

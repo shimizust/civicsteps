@@ -199,16 +199,20 @@ async function loadCovered(scopes: string[]): Promise<Set<string> | null> {
   return new Set(data.map((c) => c.scope));
 }
 
+type CoveragePatch = Database["public"]["Tables"]["ingest_coverage"]["Update"];
+
+async function markCoverage(scope: string, patch: CoveragePatch) {
+  if (LIMIT) return;
+  const { error } = await db.from("ingest_coverage").upsert({
+    ...patch, scope, progress_at: new Date().toISOString(),
+  }, { onConflict: "scope" });
+  if (error) throw error;
+}
+
 async function recordBackfill(scope: string, failure: string | null) {
-  // A --limit run is partial, so it doesn't count as a backfill.
-  if (LIMIT && !failure) return;
-  const { error } = await db
-    .from("ingest_coverage")
-    .upsert(
-      failure ? { scope, last_error: failure.slice(0, 500) } : { scope, backfilled_at: new Date().toISOString(), last_error: null },
-      { onConflict: "scope" },
-    );
-  if (error) console.error(`coverage ${scope}:`, error.message);
+  await markCoverage(scope, failure
+    ? { progress: "retry", last_error: failure.slice(0, 500) }
+    : { progress: "analyzing", backfilled_at: new Date().toISOString(), last_error: null });
 }
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
@@ -216,21 +220,29 @@ const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
 /** State bills for every state a user lives in; states seen for the first time get a deeper backfill. */
 async function ingestStates() {
   if (!should("openstates")) return;
-  const { data: profiles } = await db.from("profiles").select("state").not("state", "is", null);
-  const states = [...new Set((profiles ?? []).map((p) => p.state!))].sort();
+  const { data: profiles, error } = await db.from("profiles").select("state").not("state", "is", null);
+  if (error) throw error;
+  const { data: requests, error: requestError } = await db.from("ingest_coverage").select("scope").like("scope", "state:%").is("backfilled_at", null);
+  if (requestError) throw requestError;
+  const states = [...new Set([...profiles.map((p) => p.state!), ...requests.map((r) => r.scope.slice(6))])].sort();
   const covered = await loadCovered(states.map(stateScope));
   if (!covered && NEW_AREAS_ONLY) return;
 
   for (const st of states) {
     const isNew = !!covered && !covered.has(stateScope(st));
     if (NEW_AREAS_ONLY && !isNew) continue;
+    if (!process.env.OPENSTATES_API_KEY && isNew) {
+      await recordBackfill(stateScope(st), "Open States API key is missing");
+      continue;
+    }
+    if (isNew) await markCoverage(stateScope(st), { progress: "fetching", last_error: null });
     const failure = await runSource(
       `openstates ${st}${isNew ? " (backfill)" : ""}`,
       () => fetchStateBills(st, isNew ? daysAgo(STATE_BACKFILL_DAYS) : since, isNew ? { maxPages: BACKFILL_PAGES, by: "action" } : {}),
       "openstates",
     );
     // Without a key nothing was fetched: not a backfill.
-    if (isNew && process.env.OPENSTATES_API_KEY) await recordBackfill(stateScope(st), failure);
+    if (isNew) await recordBackfill(stateScope(st), failure);
   }
 }
 
@@ -242,6 +254,7 @@ async function ingestCities() {
   for (const src of LOCAL_SOURCES) {
     const isNew = !!covered && !covered.has(citySourceScope(src));
     if (NEW_AREAS_ONLY && !isNew) continue;
+    if (isNew) await markCoverage(citySourceScope(src), { progress: "fetching", last_error: null });
     // The on-demand backfill skips the officials step, so a new city's council comes in here.
     if (isNew && !should("officials")) {
       await syncCouncil(src).catch((err) => console.error(`council ${src.client} failed:`, err instanceof Error ? err.message : err));
@@ -292,14 +305,16 @@ async function saveNewFacts(results: { itemId: string; newFacts: Fact[] }[]) {
   }
 }
 
-async function collectBatches() {
-  const { data: pending, error } = await db
-    .from("items")
-    .select("analysis_batch_id")
-    .eq("analysis_status", "submitted")
-    .not("analysis_batch_id", "is", null);
-  if (error) throw error;
-  const batchIds = [...new Set(pending.map((p) => p.analysis_batch_id!))];
+async function collectBatches(batchIds?: string[]) {
+  if (!batchIds) {
+    const { data: pending, error } = await db
+      .from("items")
+      .select("analysis_batch_id")
+      .eq("analysis_status", "submitted")
+      .not("analysis_batch_id", "is", null);
+    if (error) throw error;
+    batchIds = [...new Set(pending.map((p) => p.analysis_batch_id!))];
+  }
 
   for (const batchId of batchIds) {
     let outcome = await collectAnalysisBatch(batchId, registry);
@@ -429,14 +444,101 @@ async function heuristicPending() {
   const fresh = data
     .filter((d) => !d.item_analysis || d.item_analysis.prompt_version !== HEURISTIC_VERSION)
     .map(({ item_analysis: _a, ...i }) => i);
-  for (const c of chunk(fresh, 500)) {
-    const { error: upErr } = await db.from("item_analysis").upsert(
+  await tagWithHeuristics(fresh);
+  log(`analyze: no ANTHROPIC_API_KEY — tagged ${fresh.length} items with keyword rules (they'll get AI analysis once a key is set)`);
+}
+
+async function tagWithHeuristics(items: (Parameters<typeof heuristicAnalysis>[0] & { id: string })[]) {
+  for (const c of chunk(items, 500)) {
+    const { error } = await db.from("item_analysis").upsert(
       c.map((i) => ({ item_id: i.id, ...heuristicAnalysis(i), model: "heuristic", prompt_version: HEURISTIC_VERSION })),
       { onConflict: "item_id" },
     );
-    if (upErr) throw upErr;
+    if (error) throw error;
   }
-  log(`analyze: no ANTHROPIC_API_KEY — tagged ${fresh.length} items with keyword rules (they'll get AI analysis once a key is set)`);
+}
+
+type Backfill = { scope: string; backfilled_at: string | null };
+
+function backfillItems(area: Backfill) {
+  // Use the original fetch date so a delayed analysis run works through the same activity window.
+  const fetched = Date.parse(area.backfilled_at!);
+  const cutoff = (days: number) => new Date(fetched - days * 86_400_000).toISOString().slice(0, 10);
+  const city = LOCAL_SOURCES.find((src) => citySourceScope(src) === area.scope);
+  const state = area.scope.slice("state:".length);
+  return {
+    source: city ? "legistar" : "openstates",
+    jurisdiction: city?.jurisdictionId ?? `ocd-division/country:us/state:${state.toLowerCase()}`,
+    dates: city
+      ? `last_action_at.gte.${cutoff(CITY_BACKFILL_DAYS)}`
+      : `last_action_at.gte.${cutoff(ACTIVE_DAYS)},enacted_at.gte.${cutoff(ENACTED_DAYS)}`,
+  };
+}
+
+async function updateAnalysisProgress(area: Backfill, filters: ReturnType<typeof backfillItems>) {
+  const { source, jurisdiction, dates } = filters;
+  const analyzedItems = db.from("items").select("id, item_analysis!inner(item_id)", { count: "exact", head: true })
+    .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates);
+  if (aiConfigured()) analyzedItems.eq("analysis_status", "done");
+  const [total, analyzed, failed] = await Promise.all([
+    db.from("items").select("id", { count: "exact", head: true })
+      .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates),
+    analyzedItems,
+    db.from("items").select("id", { count: "exact", head: true })
+      .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates).eq("analysis_status", "failed"),
+  ]);
+  const error = total.error ?? analyzed.error ?? failed.error;
+  if (error) throw error;
+  const found = total.count ?? 0;
+  const done = analyzed.count ?? 0;
+  const skipped = failed.count ?? 0;
+  await markCoverage(area.scope, {
+    items_found: found, items_analyzed: done, items_failed: skipped,
+    progress: done + skipped >= found ? "ready" : "analyzing",
+  });
+}
+
+async function analyzeBackfills() {
+  if (LIMIT) return;
+  const { data: areas, error } = await db.from("ingest_coverage")
+    .select("scope, backfilled_at").eq("progress", "analyzing").not("backfilled_at", "is", null)
+    .order("backfilled_at");
+  if (error) throw error;
+
+  for (const area of areas) {
+    const filters = backfillItems(area);
+    const { source, jurisdiction, dates } = filters;
+    await updateAnalysisProgress(area, filters);
+    if (!aiConfigured()) {
+      while (true) {
+        const { data, error } = await db.from("items")
+          .select("id, title, description, agency, item_analysis()")
+          .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates)
+          .is("item_analysis", null).neq("analysis_status", "failed").limit(500);
+        if (error) throw error;
+        if (!data.length) break;
+        await tagWithHeuristics(data);
+        await updateAnalysisProgress(area, filters);
+      }
+      continue;
+    }
+
+    while (true) {
+      const { data: pending, error } = await db.from("items").select(ANALYZE_COLUMNS)
+        .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates)
+        .eq("analysis_status", "pending").order("id").limit(500);
+      if (error) throw error;
+      await submitBatch(pending, FAST_MODEL, "area analysis");
+
+      const { data: submitted, error: submittedError } = await db.from("items").select("analysis_batch_id")
+        .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates)
+        .eq("analysis_status", "submitted").not("analysis_batch_id", "is", null);
+      if (submittedError) throw submittedError;
+      await collectBatches([...new Set(submitted.map((item) => item.analysis_batch_id!))]);
+      await updateAnalysisProgress(area, filters);
+      if (!WAIT || (!pending.length && !submitted.length)) break;
+    }
+  }
 }
 
 // ---------------------------------------------------------------- main
@@ -493,14 +595,18 @@ async function main() {
 
   if (should("analyze")) {
     if (!aiConfigured()) {
-      await heuristicPending();
+      await analyzeBackfills();
+      if (!NEW_AREAS_ONLY) await heuristicPending();
     } else {
       await loadRegistry();
-      await collectBatches();
-      if (REANALYZE) await requeueStale();
-      await escalate();
-      await submitPending();
-      if (WAIT) await collectBatches();
+      await analyzeBackfills();
+      if (!NEW_AREAS_ONLY) {
+        await collectBatches();
+        if (REANALYZE) await requeueStale();
+        await escalate();
+        await submitPending();
+        if (WAIT) await collectBatches();
+      }
       // Facts minted this run, plus any the "Ask about my situation" agent minted since the last run.
       const { data: agentFacts } = await db
         .from("facts")

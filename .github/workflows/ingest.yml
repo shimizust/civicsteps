@@ -8,7 +8,9 @@ on:
         description: "Extra args for npm run ingest, e.g. --only=federalregister --limit=20"
         required: false
 
-concurrency: ingest
+concurrency:
+  group: ingest
+  queue: max
 
 jobs:
   ingest:

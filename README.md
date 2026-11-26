@@ -71,7 +71,9 @@ npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only 
 
 ### New areas are ingested on demand
 
-State bills are only fetched for states where users live, and council items for cities in `ingest/legistar.config.ts`. The first time a state or city is ingested, it gets a 45-day backfill (state bills with a legislative action in that window, council items changed in it), recorded in `ingest_coverage`; after that it gets the normal nightly lookback. When a user saves a ZIP in an area that isn't covered yet, the app dispatches `.github/workflows/backfill.yml` (if `INGEST_DISPATCH_TOKEN` and `INGEST_DISPATCH_REPO` are set), so local items show up within the hour. Without those variables, the next `npm run ingest` (or nightly run) picks it up.
+State bills are fetched for states where users live, and council items come from the cities in `ingest/legistar.config.ts`. Saving a ZIP in an uncovered area queues its initial index in `ingest_coverage`. The worker backfills recent legislative activity and laws signed in the past 120 days, then prioritizes analysis for those areas. The civic feed automatically refreshes while indexing is pending and shows progress for each supported source.
+
+Set `INGEST_DISPATCH_TOKEN` and `INGEST_DISPATCH_REPO` on the app to dispatch `.github/workflows/backfill.yml` on demand. The nightly job also picks up queued areas and unfinished analysis. Apply the Supabase migrations before deploying the app and workflows.
 
 ### Adding your city
 
