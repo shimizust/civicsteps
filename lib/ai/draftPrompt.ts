@@ -1,3 +1,5 @@
+import { enactmentDate } from "@/lib/enactment";
+
 /**
  * Pure prompt building for drafts — no SDK import, so it can run in the browser for the
  * "copy this prompt to your own AI" fallback. Privacy: only coarse location (city/state)
@@ -13,9 +15,41 @@ export const STANCE_LABEL: Record<Stance, string> = {
   question: "I have a question",
 };
 
+export const LAW_RESPONSE_IDS = ["implementation", "oversight", "amend", "repeal", "support"] as const;
+export type LawResponse = (typeof LAW_RESPONSE_IDS)[number];
+
+export const LAW_RESPONSES = {
+  implementation: {
+    label: "Ask how the law will roll out",
+    ask: "Ask for implementation dates, agency guidance, or how residents can give input. Focus on the question raised by the personal note.",
+    stance: "question",
+  },
+  oversight: {
+    label: "Raise an implementation concern",
+    ask: "Ask the legislator to raise the specific concern with the responsible agency or request an update on how the agency will address it.",
+    stance: "concerned",
+  },
+  amend: {
+    label: "Ask for a change to the law",
+    ask: "Ask the legislator to introduce or support follow-up legislation addressing the specific problem described in the personal note.",
+    stance: "concerned",
+  },
+  repeal: {
+    label: "Ask for the law to be repealed",
+    ask: "Ask the legislator to introduce or support repeal legislation and explain the writer's reason.",
+    stance: "oppose",
+  },
+  support: {
+    label: "Support putting the law into practice",
+    ask: "Explain why the writer supports the law and ask the legislator to follow its implementation or support a concrete rollout need from the personal note.",
+    stance: "support",
+  },
+} satisfies Record<LawResponse, { label: string; ask: string; stance: Stance }>;
+
 export type DraftInput = {
   kind: DraftKind;
   stance: Stance;
+  lawResponse?: LawResponse;
   personalNote: string;
   item: {
     title: string;
@@ -25,6 +59,8 @@ export type DraftInput = {
     external_id: string;
     agency: string | null;
     comment_deadline: string | null;
+    enacted_at?: string | null;
+    status?: string | null;
   };
   official: { name: string; office: string } | null;
   place: string | null; // "Boulder, CO"
@@ -50,6 +86,7 @@ Rules:
 
 export function buildDraftPrompt(input: DraftInput): string {
   const { item, official } = input;
+  const lawResponse = item.enacted_at && input.lawResponse ? LAW_RESPONSES[input.lawResponse] : null;
   const recipient =
     input.kind === "public_comment"
       ? `${item.agency ?? "The agency"} (public comment docket)`
@@ -65,11 +102,14 @@ export function buildDraftPrompt(input: DraftInput): string {
     `Item: ${item.title}`,
     `Item type: ${item.type.replace("_", " ")}`,
     `Identifier: ${item.external_id}`,
+    item.status && `Latest reported status: ${item.status}`,
+    item.enacted_at && `Enacted on: ${enactmentDate(item.enacted_at)}`,
     item.summary && `Summary: ${item.summary}`,
     item.comment_deadline && `Comment deadline: ${new Date(item.comment_deadline).toDateString()}`,
     item.url && `Link: ${item.url}`,
     "",
-    `Writer's position: ${STANCE_LABEL[input.stance]}`,
+    item.enacted_at && "This bill is already law. Frame the message as follow-up and do not ask for a vote on the original bill. Do not assume the enactment date is the effective date or assert that a comment period, agency rule, deadline, or follow-up bill exists unless the item information establishes it.",
+    lawResponse ? `Writer's goal: ${lawResponse.label}. ${lawResponse.ask}` : `Writer's position: ${STANCE_LABEL[input.stance]}`,
     `Writer's personal connection (in their words): ${input.personalNote.trim()}`,
   ];
   return lines.filter((l): l is string => typeof l === "string").join("\n");

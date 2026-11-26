@@ -6,7 +6,7 @@ import { aiConfigured } from "@/lib/ai/client";
 import { assessmentHash, type Assessment } from "@/lib/ai/assess";
 import { AssessPanel } from "@/components/AssessPanel";
 import { FactQuestion } from "@/components/FactQuestion";
-import { FACETS, topicName } from "@/lib/taxonomy";
+import { FACETS } from "@/lib/taxonomy";
 import { matchInterests, type FeedAnalysis } from "@/lib/relevance";
 import { hasDirection, personalImpact, unaffectedFacets, type PersonalImpact } from "@/lib/impact";
 import { ImpactBadge, ImpactRow } from "@/components/ImpactMeter";
@@ -16,6 +16,7 @@ import type { ActionType } from "@/lib/gamification";
 import { ActionPanel, MarkRead } from "@/components/ActionPanel";
 import { OfficialCard } from "@/components/OfficialCard";
 import { RelevanceVote } from "@/components/RelevanceVote";
+import { IssueSummary } from "@/components/IssueSummary";
 import { ItemMap } from "@/components/ItemMap";
 import { formatMiles, milesBetween } from "@/lib/locations";
 import { Card, LEVEL_LABEL, LinkButton, Pill, SectionTitle, deadlineLabel } from "@/components/ui";
@@ -113,26 +114,17 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         <AssessPanel itemId={item.id} initial={assessment} initialHash={lastAssessment.data?.facts_hash ?? null} currentHash={currentHash} />
       )}
 
-      <Card className="mt-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">In plain English</h2>
-        <p className="mt-2 leading-relaxed">{a?.summary || (item.description ?? "A plain-language summary is coming soon. See the source for full text.")}</p>
-        {a?.why_it_matters && <p className="mt-3 text-sm"><strong>Why it matters:</strong> {a.why_it_matters}</p>}
-        {(a?.arguments_for.length || a?.arguments_against.length) ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Args title="Supporters say" items={a.arguments_for} />
-            <Args title="Opponents say" items={a.arguments_against} />
-          </div>
-        ) : null}
-        {a && a.topics.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1.5">{a.topics.map((t) => <Pill key={t} tone="accent">{topicName(t)}</Pill>)}</div>
-        )}
-        <p className="mt-4 text-xs text-muted">
-          {a?.model === "heuristic" ? "Auto-tagged; full AI summary pending." : "AI-generated summary."}{" "}
-          {item.url && <a className="text-accent underline" href={item.url} target="_blank" rel="noreferrer">Read the source</a>}
-        </p>
-      </Card>
+      <div className="mt-6">
+        <IssueSummary analysis={a} description={item.description} url={item.url} />
+      </div>
 
-      <SectionTitle>Make your voice heard</SectionTitle>
+      <SectionTitle>{item.enacted_at ? "What you can do now" : "Make your voice heard"}</SectionTitle>
+      {item.enacted_at && (
+        <Card className="mb-3 space-y-2 text-sm">
+          <p>The vote is complete. You can ask your legislator how the law will roll out, raise a concern, or request a change through follow-up legislation.</p>
+          <p>If the responsible agency opens a public comment period on proposed rules, send feedback directly to the agency by its deadline.</p>
+        </Card>
+      )}
       {isComment ? (
         <Card>
           <p>Anyone can submit a public comment. Agencies must read and consider every comment, and specific, personal comments carry the most weight.</p>
@@ -168,16 +160,6 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         <ActionPanel itemId={item.id} actions={actions} done={(myActions.data ?? []).map((x) => x.type)} />
       </Card>
     </article>
-  );
-}
-
-function Args({ title, items }: { title: string; items: string[] }) {
-  if (!items.length) return null;
-  return (
-    <div>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted">{items.map((x) => <li key={x}>{x}</li>)}</ul>
-    </div>
   );
 }
 

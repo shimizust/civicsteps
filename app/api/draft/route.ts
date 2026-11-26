@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { aiConfigured } from "@/lib/ai/client";
 import { streamDraft } from "@/lib/ai/draft";
+import { LAW_RESPONSE_IDS, LAW_RESPONSES } from "@/lib/ai/draftPrompt";
 import { placeName } from "@/lib/place";
 
 export const runtime = "nodejs";
@@ -13,6 +14,7 @@ const Body = z.object({
   officialId: z.string().max(200).nullable(),
   kind: z.enum(["email", "call_script", "public_comment"]),
   stance: z.enum(["support", "oppose", "concerned", "question"]),
+  lawResponse: z.enum(LAW_RESPONSE_IDS).optional(),
   personalNote: z.string().trim().min(10, "Add a sentence about why this matters to you.").max(600),
 });
 
@@ -31,11 +33,16 @@ export async function POST(req: NextRequest) {
   const b = parsed.data;
 
   const [{ data: item }, { data: official }, { data: profile }] = await Promise.all([
-    supabase.from("items").select("title, type, url, external_id, agency, comment_deadline, item_analysis(summary)").eq("id", b.itemId).maybeSingle(),
+    supabase.from("items").select("title, description, type, url, external_id, agency, comment_deadline, status, enacted_at, item_analysis(summary)").eq("id", b.itemId).maybeSingle(),
     b.officialId ? supabase.from("officials").select("name, office").eq("id", b.officialId).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("profiles").select("jurisdiction_ids, state").eq("user_id", user.id).maybeSingle(),
   ]);
   if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+  const lawResponse = item.enacted_at ? b.lawResponse : undefined;
+  if (item.enacted_at && (!lawResponse || b.kind === "public_comment")) {
+    return NextResponse.json({ error: "Choose a follow-up goal for your message to a legislator." }, { status: 400 });
+  }
+  const stance = lawResponse ? LAW_RESPONSES[lawResponse].stance : b.stance;
 
   const admin = createAdminClient();
   const { data: allowed, error: quotaErr } = await admin.rpc("consume_draft_quota", { p_user: user.id, p_limit: DAILY_LIMIT });
@@ -49,9 +56,10 @@ export async function POST(req: NextRequest) {
 
   const { text, done } = streamDraft({
     kind: b.kind,
-    stance: b.stance,
+    stance,
+    lawResponse,
     personalNote: b.personalNote,
-    item: { ...item, summary: item.item_analysis?.summary ?? null },
+    item: { ...item, summary: item.item_analysis?.summary || item.description },
     official,
     place: placeName(profile?.jurisdiction_ids ?? [], profile?.state ?? null),
   });
@@ -63,7 +71,7 @@ export async function POST(req: NextRequest) {
         item_id: b.itemId,
         official_id: b.officialId,
         kind: b.kind,
-        stance: b.stance,
+        stance,
         personal_note: b.personalNote,
         content,
         model,

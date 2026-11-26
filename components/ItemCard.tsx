@@ -9,6 +9,7 @@ import { Card, LEVEL_LABEL, Pill, cx, deadlineLabel } from "@/components/ui";
 import { TopicTile } from "@/components/TopicTile";
 import { ImpactBadge, ImpactChip } from "@/components/ImpactMeter";
 import { RepAvatars } from "@/components/RepAvatars";
+import { enactmentDate } from "@/lib/enactment";
 
 type Official = Database["public"]["Tables"]["officials"]["Row"];
 
@@ -22,7 +23,7 @@ export const TYPE_LABEL: Record<string, string> = {
 };
 
 export const typeLabel = (item: { type: string; enacted_at?: string | null }) =>
-  item.enacted_at ? "Signed into law" : (TYPE_LABEL[item.type] ?? item.type);
+  item.enacted_at ? `Enacted on ${enactmentDate(item.enacted_at)}` : (TYPE_LABEL[item.type] ?? item.type);
 
 export function ItemCard({
   r,

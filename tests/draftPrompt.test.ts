@@ -24,6 +24,20 @@ describe("draft prompt", () => {
   it("copyable prompt carries the system rules", () => {
     expect(copyablePrompt(input)).toMatch(/Do not invent facts/);
   });
+  it("pairs an enacted law's follow-up goal with the writer's personal story", () => {
+    const prompt = copyablePrompt({
+      ...input,
+      kind: "email",
+      lawResponse: "amend",
+      item: { ...input.item, type: "bill", enacted_at: "2026-11-12", comment_deadline: null },
+    });
+    expect(prompt).toContain("Enacted on: November 12, 2026");
+    expect(prompt).toContain("Ask for a change to the law");
+    expect(prompt).toContain("introduce or support follow-up legislation");
+    expect(prompt).toContain("do not ask for a vote on the original bill");
+    expect(prompt).toContain(input.personalNote);
+    expect(prompt).not.toContain("Writer's position:");
+  });
 });
 
 describe("helpers", () => {
