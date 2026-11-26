@@ -85,7 +85,7 @@ Free tiers of Supabase and Vercel are enough for a personal or small instance. T
    ```bash
    npx supabase projects create civicsteps --region us-west-1 --db-password '<strong password>'
    npx supabase link --project-ref <ref>
-   npx supabase db push --include-seed        # migrations + supabase/seed.sql
+   npx supabase db push --remote --include-seed  # hosted migrations + supabase/seed.sql
    npx supabase projects api-keys --project-ref <ref>
    ```
    In Auth → URL Configuration, set the Site URL to your app's URL and add `<your-site>/auth/callback` as a redirect URL. Don't run `supabase config push`, because `supabase/config.toml` holds localhost settings.
