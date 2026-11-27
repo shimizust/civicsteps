@@ -70,7 +70,7 @@ export function councilMemberFromRecord(r: OfficeRecord, src: LocalSource): Offi
     level: "city",
     jurisdiction_id: src.jurisdictionId,
     state: src.state,
-    photo_url: null,
+    photo_url: src.photos?.[r.OfficeRecordPersonId] ?? null,
     contacts: { emails: r.OfficeRecordEmail ? [r.OfficeRecordEmail] : [], website: `https://${src.client}.legistar.com/People.aspx` },
     external_ids: { legistar_person: r.OfficeRecordPersonId },
     updated_at: new Date().toISOString(),

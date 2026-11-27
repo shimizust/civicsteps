@@ -79,6 +79,10 @@ Set `INGEST_DISPATCH_TOKEN` and `INGEST_DISPATCH_REPO` on the app to dispatch `.
 
 If your city publishes council agendas on Legistar (`<city>.legistar.com`), add it to `ingest/legistar.config.ts`, then run `npm run gen:seed && npm run db:reset` (or insert the seed rows on a hosted database).
 
+Add verified portrait URLs to the city's `photos` map in `ingest/legistar.config.ts`, keyed by Legistar person ID. The next officials sync writes them to `officials.photo_url`. To refresh an existing database, run `npm run ingest -- --only=officials`. Seattle uses the city roster, and Sunnyvale uses the League of Women Voters of Cupertino-Sunnyvale roster.
+
+County and other local data sources can supply `officials.photo_url` directly when they import their rosters. CivicSteps currently imports local rosters from its configured Legistar cities.
+
 ## Deploying
 
 Free tiers of Supabase and Vercel are enough for a personal or small instance. The nightly ingest also keeps a free Supabase project from pausing.

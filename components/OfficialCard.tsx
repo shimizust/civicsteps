@@ -3,6 +3,7 @@ import { ChevronDown, ExternalLink, Mail, PenLine, Phone } from "lucide-react";
 import type { Database } from "@/lib/supabase/database.types";
 import { contactsOf, phoneNumbersOf } from "@/lib/civic/officials";
 import { Card, Pill, cx } from "@/components/ui";
+import { OfficialPortrait } from "@/components/OfficialPortrait";
 
 type Official = Database["public"]["Tables"]["officials"]["Row"];
 
@@ -34,24 +35,12 @@ export function OfficialCard({
 
   return (
     <Card className={cx("flex gap-3.5", compact && "!p-3.5", hero && "items-center gap-4 sm:p-6")}>
-      {o.photo_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={o.photo_url}
-          alt=""
-          className={cx("shrink-0 rounded-lg bg-line object-cover", hero ? "h-20 w-18 rounded-xl" : "h-16 w-14")}
-          loading="lazy"
-        />
-      ) : (
-        <div
-          className={cx(
-            "flex shrink-0 items-center justify-center rounded-lg bg-accent-soft font-display text-accent",
-            hero ? "h-20 w-18 rounded-xl text-2xl" : "h-16 w-14 text-xl",
-          )}
-        >
-          {o.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-        </div>
-      )}
+      <OfficialPortrait
+        name={o.name}
+        src={o.photo_url}
+        className={cx("shrink-0", hero ? "h-20 w-18 rounded-xl" : "h-16 w-14 rounded-lg")}
+        fallbackClassName={cx("font-display", hero ? "text-2xl" : "text-xl")}
+      />
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
