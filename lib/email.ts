@@ -4,26 +4,37 @@ import type { Ranked } from "@/lib/relevance";
 const site = () => process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-function itemRow(r: Ranked) {
+function itemRow(r: Ranked, note?: string) {
   const when =
     r.daysLeft !== null && r.daysLeft >= 0
       ? `<span style="color:#b4530b;font-weight:600">${r.item.comment_deadline ? "Comments close" : "On the agenda"} ${r.daysLeft === 0 ? "today" : r.daysLeft === 1 ? "tomorrow" : `in ${r.daysLeft} days`}</span><br>`
       : "";
+  const noteHtml = note ? `<p style="margin:4px 0;color:#855700;font-size:13px;font-weight:600">${esc(note)}</p>` : "";
   return `<tr><td style="padding:12px 0;border-bottom:1px solid #e2ded3">
     ${when}<a href="${site()}/items/${r.item.id}" style="color:#1c2321;font-weight:600;text-decoration:none">${esc(r.analysis.headline?.trim() || r.item.title)}</a>
+    ${noteHtml}
     ${r.analysis.summary ? `<p style="margin:4px 0 0;color:#5d6763;font-size:14px">${esc(r.analysis.summary.slice(0, 280))}</p>` : ""}
   </td></tr>`;
 }
 
-export function renderEmail(opts: { heading: string; intro: string; items: Ranked[] }) {
+export function renderEmail(opts: {
+  heading: string;
+  intro: string;
+  items: Ranked[];
+  itemNotes?: Map<string, string>;
+  ctaHref?: string;
+  ctaLabel?: string;
+}) {
+  const ctaHref = opts.ctaHref ?? "/feed";
+  const ctaLabel = opts.ctaLabel ?? "Open my feed";
   return `<!doctype html><html><body style="margin:0;background:#f6f4ee;font-family:system-ui,sans-serif;color:#1c2321">
   <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 16px">
   <table width="100%" style="max-width:560px;background:#fff;border:1px solid #e2ded3;border-radius:12px;padding:24px">
     <tr><td><p style="margin:0;font-family:Georgia,serif;font-size:18px;font-weight:600">Civic<span style="color:#0f5b4f">Steps</span></p>
     <h1 style="font-family:Georgia,serif;font-size:24px;margin:16px 0 8px">${esc(opts.heading)}</h1>
     <p style="margin:0 0 8px;color:#5d6763">${esc(opts.intro)}</p></td></tr>
-    ${opts.items.map(itemRow).join("")}
-    <tr><td style="padding-top:20px"><a href="${site()}/feed" style="background:#0f5b4f;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600">Open my feed</a>
+    ${opts.items.map((r) => itemRow(r, opts.itemNotes?.get(r.item.id))).join("")}
+    <tr><td style="padding-top:20px"><a href="${site()}${ctaHref}" style="background:#0f5b4f;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600">${esc(ctaLabel)}</a>
     <p style="margin-top:24px;font-size:12px;color:#5d6763">You get this because of your CivicSteps alert settings. <a href="${site()}/onboarding?step=5" style="color:#5d6763">Change or turn off emails</a>.</p></td></tr>
   </table></td></tr></table></body></html>`;
 }

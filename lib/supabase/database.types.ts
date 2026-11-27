@@ -137,6 +137,26 @@ isOneToOne: true
       referencedColumns: ["id"]
     }
                   ]
+                },"item_favorites": {
+                  Row: {
+                    "created_at": string,"item_id": string,"last_seen_action": string | null,"last_seen_action_at": string | null,"last_seen_at": string,"last_seen_deadline": string | null,"last_seen_enacted_at": string | null,"last_seen_status": string | null,"source": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"item_id": string,"last_seen_action"?: string | null,"last_seen_action_at"?: string | null,"last_seen_at"?: string,"last_seen_deadline"?: string | null,"last_seen_enacted_at"?: string | null,"last_seen_status"?: string | null,"source": string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"item_id"?: string,"last_seen_action"?: string | null,"last_seen_action_at"?: string | null,"last_seen_at"?: string,"last_seen_deadline"?: string | null,"last_seen_enacted_at"?: string | null,"last_seen_status"?: string | null,"source"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "item_favorites_item_id_fkey"
+      columns: ["item_id"]
+isOneToOne: false
+      referencedRelation: "items"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"item_feedback": {
                   Row: {
                     "created_at": string,"item_id": string,"relevant": boolean,"source": string,"updated_at": string,"user_id": string

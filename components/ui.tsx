@@ -46,6 +46,7 @@ const pillTones = {
   cost: "bg-cost-soft text-cost",
   benefit: "bg-benefit-soft text-benefit",
   pet: "bg-pet-soft text-pet",
+  favorite: "bg-favorite-soft text-favorite",
 };
 export function Pill({ tone = "neutral", children, className }: { tone?: keyof typeof pillTones; children: ReactNode; className?: string }) {
   return <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium", pillTones[tone], className)}>{children}</span>;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ChevronRight, Clock, MapPin, PenLine, Star } from "lucide-react";
+import { Bookmark, Check, ChevronRight, Clock, MapPin, PenLine, Star } from "lucide-react";
 import type { Ranked } from "@/lib/relevance";
 import { hasDirection } from "@/lib/impact";
 import type { Database } from "@/lib/supabase/database.types";
@@ -10,6 +10,7 @@ import { TopicTile } from "@/components/TopicTile";
 import { ImpactBadge, ImpactChip } from "@/components/ImpactMeter";
 import { RepAvatars } from "@/components/RepAvatars";
 import { RelevanceVote } from "@/components/RelevanceVote";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { enactmentDate } from "@/lib/enactment";
 
 type Official = Database["public"]["Tables"]["officials"]["Row"];
@@ -33,6 +34,10 @@ export function ItemCard({
   place,
   showVote = false,
   onVote,
+  showFavorite = false,
+  favoriteSource = "feed",
+  onFavorite,
+  updateSummary,
 }: {
   r: Ranked;
   reps?: Official[];
@@ -40,6 +45,10 @@ export function ItemCard({
   place?: Place;
   showVote?: boolean;
   onVote?: (itemId: string, value: boolean | null) => void;
+  showFavorite?: boolean;
+  favoriteSource?: "feed" | "browse" | "item" | "favorites";
+  onFavorite?: (itemId: string, favorited: boolean) => void;
+  updateSummary?: string | null;
 }) {
   const { item, analysis, impact } = r;
   const headline = analysis.headline?.trim() || item.title;
@@ -73,7 +82,7 @@ export function ItemCard({
     <Card
       className={cx(
         "group relative flex h-full gap-3.5 transition duration-150 hover:-translate-y-0.5 hover:border-accent hover:shadow-[var(--shadow-card-hover)] sm:gap-4",
-        r.petMatch && "border-pet/40",
+        r.favorited ? "border-favorite/45" : r.petMatch && "border-pet/40",
         hero && "sm:p-6",
       )}
     >
@@ -83,6 +92,17 @@ export function ItemCard({
           <Kicker className="tabular-nums">
             {LEVEL_LABEL[item.level]} · {typeLabel(item)}
           </Kicker>
+          {r.favorited && (
+            <Pill tone="favorite">
+              <Bookmark className="h-3 w-3 fill-current" aria-hidden /> Favorited
+            </Pill>
+          )}
+          {updateSummary && <Pill tone="accent">Updated</Pill>}
+          {r.favorited && r.acted && (
+            <Pill tone="benefit">
+              <Check className="h-3 w-3" aria-hidden /> You acted
+            </Pill>
+          )}
           {r.petMatch && hero && (
             <Pill tone="pet">
               <Star className="h-3 w-3 fill-current" aria-hidden /> Pet issue
@@ -117,6 +137,11 @@ export function ItemCard({
         </h3>
         {showTitle && <p className="mt-0.5 truncate text-xs text-muted" title={item.title}>{item.title}</p>}
         {summary && <p className={cx("mt-2 text-sm leading-relaxed text-muted", hero ? "line-clamp-3" : "line-clamp-2")}>{summary}</p>}
+        {updateSummary && (
+          <p className="mt-2 rounded-lg bg-favorite-soft/70 px-2.5 py-1.5 text-xs font-medium text-favorite">
+            {updateSummary}
+          </p>
+        )}
 
         {(facets.length > 0 || impact.level) && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -132,6 +157,15 @@ export function ItemCard({
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line/70 pt-3">
             <RepAvatars officials={reps} />
             <div className="relative z-10 ml-auto flex items-center gap-2">
+              {showFavorite && (
+                <FavoriteButton
+                  itemId={item.id}
+                  favorited={r.favorited}
+                  source={favoriteSource}
+                  compact
+                  onChange={(v) => onFavorite?.(item.id, v)}
+                />
+              )}
               {showVote && (
                 <RelevanceVote
                   itemId={item.id}

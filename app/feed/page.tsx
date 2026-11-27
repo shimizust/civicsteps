@@ -1,12 +1,13 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Flame } from "lucide-react";
+import { ArrowRight, Bookmark, Flame } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { getAreaProgress, getFeed, getIndexCounts, getMyOfficials, getProfile, getStats, type Place } from "@/lib/data";
 import { areasFor } from "@/lib/coverage";
 import { ItemCard } from "@/components/ItemCard";
 import { FeedList, type FeedEntry } from "@/components/FeedList";
-import { Card, Empty, Kicker, PageTitle, SectionTitle, cx } from "@/components/ui";
+import { Card, Empty, Kicker, PageTitle, Pill, SectionTitle, cx } from "@/components/ui";
 import { FEED_LEVELS, countByLevel, matchesLevel, sectionRanked, type FeedLevel, type Ranked } from "@/lib/relevance";
 import { QuickQuestions } from "@/components/QuickQuestions";
 import { LocalIndexProgress } from "@/components/LocalIndexProgress";
@@ -30,13 +31,19 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const repsById = new Map(officials.map((o) => [o.id, o]));
   const repsFor = (r: Ranked) => r.my_official_ids.flatMap((id) => repsById.get(id) ?? []);
   const toEntries = (items: Ranked[]): FeedEntry[] =>
-    items.map((r) => ({ r, reps: repsFor(r), place: feed.places[r.item.id] as Place | undefined }));
+    items.map((r) => ({
+      r,
+      reps: repsFor(r),
+      place: feed.places[r.item.id] as Place | undefined,
+      updateSummary: feed.favoriteUpdates[r.item.id] ?? null,
+    }));
 
   const levelCounts = countByLevel(feed.ranked);
-  const { actNow, radar, done, totals } = sectionRanked(
+  const { actNow, followingUp, radar, done, totals } = sectionRanked(
     feed.ranked.filter((r) => matchesLevel(r.item, level)),
   );
   const picked = levelCounts.all;
+  const updatedFavs = Object.keys(feed.favoriteUpdates).length;
 
   const { level: tier } = stats;
   const pct = tier.next
@@ -109,17 +116,37 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
             </div>
           )}
 
+          {followingUp.length > 0 && (
+            <>
+              <SectionTitle
+                hint={sectionHint(
+                  <>
+                    Issues you favorited to keep tracking ·{" "}
+                    <Link className="text-accent hover:underline" href="/favorites">
+                      View all
+                    </Link>
+                  </>,
+                  followingUp.length,
+                  totals.followingUp,
+                )}
+              >
+                Following up
+              </SectionTitle>
+              <FeedList entries={toEntries(followingUp)} />
+            </>
+          )}
+
           <SectionTitle hint={sectionHint("Matched to your issues, most relevant first", radar.length, totals.radar)}>On your radar</SectionTitle>
           {radar.length ? (
             <FeedList entries={toEntries(radar)} />
-          ) : level === "state" && !actNow.length ? (
+          ) : level === "state" && !actNow.length && !followingUp.length ? (
             <Empty>
               No {profile.state ?? "state"} bills match your interests right now. Between legislative sessions, this shows laws signed
               in the last four months.{" "}
               <Link className="text-accent underline" href="/browse?level=state">Browse all state items</Link> or{" "}
               <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
             </Empty>
-          ) : level === "federal" && !actNow.length ? (
+          ) : level === "federal" && !actNow.length && !followingUp.length ? (
             <Empty>
               No federal bills or public comment periods match your interests right now.{" "}
               <Link className="text-accent underline" href="/browse?level=federal">Browse all federal items</Link> or{" "}
@@ -185,6 +212,35 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
           <QuickQuestions className="hidden lg:block" questions={feed.questions} />
 
+          <Card className="text-xs text-muted">
+            <div className="flex items-center justify-between gap-2">
+              <Kicker className="inline-flex items-center gap-1">
+                <Bookmark className="h-3.5 w-3.5 text-favorite" aria-hidden /> Favorites
+              </Kicker>
+              {updatedFavs > 0 && (
+                <Pill tone="favorite" className="tabular-nums">
+                  {updatedFavs} updated
+                </Pill>
+              )}
+            </div>
+            <p className="mt-1.5 text-sm text-ink">
+              {feed.favoriteCount > 0 ? (
+                <>
+                  Following up on <strong className="font-display text-lg tabular-nums">{feed.favoriteCount}</strong>{" "}
+                  {feed.favoriteCount === 1 ? "issue" : "issues"}.
+                </>
+              ) : (
+                "Save important issues to track status updates and follow-up deadlines."
+              )}
+            </p>
+            <Link
+              className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              href="/favorites"
+            >
+              View favorites <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </Card>
+
           <Coverage picked={picked} {...counts} />
         </aside>
       </div>
@@ -192,7 +248,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   );
 }
 
-function sectionHint(base: string | undefined, shown: number, total: number) {
+function sectionHint(base: ReactNode | undefined, shown: number, total: number) {
   if (total <= shown) return base;
   const cap = <span className="tabular-nums">Showing top {shown} of {total}</span>;
   return base ? (

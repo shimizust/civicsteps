@@ -5,6 +5,7 @@ import type { ActionType } from "@/lib/gamification";
 import { requireUser } from "@/lib/supabase/server";
 import { getRegistry } from "@/lib/data";
 import { normalizeAnswer, PROFILE_PREFIX, resolveKey } from "@/lib/facts";
+import { favoriteSnapshot } from "@/lib/favorites";
 import { cleanDemographics, DEMOGRAPHIC_QUESTIONS } from "@/lib/taxonomy";
 
 const ALLOWED: ActionType[] = ["read", "emailed", "called", "commented", "signed", "attended", "shared"];
@@ -88,8 +89,69 @@ export async function setRelevance(itemId: string, relevant: boolean | null, sou
       ? await supabase.from("item_feedback").delete().eq("user_id", user.id).eq("item_id", itemId)
       : await supabase.from("item_feedback").upsert({ user_id: user.id, item_id: itemId, relevant, source: src });
   if (error) return { ok: false };
+  if (relevant === false) {
+    await supabase.from("item_favorites").delete().eq("user_id", user.id).eq("item_id", itemId);
+    revalidatePath("/favorites");
+    revalidatePath("/profile");
+  }
   revalidatePath("/feed");
   revalidatePath("/browse");
   revalidatePath(`/items/${itemId}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- favorited follow-up issues
+
+const ITEM_PROGRESS_COLS = "status, last_action, last_action_at, enacted_at, comment_deadline, event_at";
+const FAV_SOURCES = ["feed", "browse", "item", "favorites"] as const;
+
+/** Favorites or unfavorites an issue to keep following up on, snapshotting its current progress. */
+export async function setFavorite(
+  itemId: string,
+  favorited: boolean,
+  source: "feed" | "browse" | "item" | "favorites",
+): Promise<{ ok: boolean }> {
+  const { supabase, user } = await requireUser();
+  if (!user || !/^[0-9a-f-]{36}$/i.test(itemId)) return { ok: false };
+  const src = FAV_SOURCES.includes(source) ? source : "item";
+
+  if (!favorited) {
+    const { error } = await supabase.from("item_favorites").delete().eq("user_id", user.id).eq("item_id", itemId);
+    if (error) return { ok: false };
+  } else {
+    const { data: item, error: itemErr } = await supabase.from("items").select(ITEM_PROGRESS_COLS).eq("id", itemId).maybeSingle();
+    if (itemErr || !item) return { ok: false };
+    const { error } = await supabase.from("item_favorites").upsert({
+      user_id: user.id,
+      item_id: itemId,
+      source: src,
+      ...favoriteSnapshot(item),
+    });
+    if (error) return { ok: false };
+    await supabase.from("item_feedback").delete().eq("user_id", user.id).eq("item_id", itemId).eq("relevant", false);
+  }
+
+  revalidatePath("/feed");
+  revalidatePath("/favorites");
+  revalidatePath("/browse");
+  revalidatePath("/profile");
+  revalidatePath(`/items/${itemId}`);
+  return { ok: true };
+}
+
+/** Updates last-seen progress when a user visits a favorited item (without clearing the current page banner). */
+export async function markFavoriteSeen(itemId: string): Promise<{ ok: boolean }> {
+  const { supabase, user } = await requireUser();
+  if (!user || !/^[0-9a-f-]{36}$/i.test(itemId)) return { ok: false };
+  const { data: item, error: itemErr } = await supabase.from("items").select(ITEM_PROGRESS_COLS).eq("id", itemId).maybeSingle();
+  if (itemErr || !item) return { ok: false };
+  const { error } = await supabase
+    .from("item_favorites")
+    .update(favoriteSnapshot(item))
+    .eq("user_id", user.id)
+    .eq("item_id", itemId);
+  if (error) return { ok: false };
+  revalidatePath("/feed");
+  revalidatePath("/favorites");
   return { ok: true };
 }

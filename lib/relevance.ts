@@ -53,6 +53,8 @@ export type UserContext = {
   actedItemIds: Set<string>;
   /** The user's "is this relevant?" votes, by item id. */
   votes?: Map<string, boolean>;
+  /** Items the user favorited to keep following up on, by item id. */
+  favoritedIds?: Set<string>;
   /** Per-topic lean learned from those votes (see learnTopicAffinity). */
   affinity?: Map<string, number>;
   now: Date;
@@ -65,6 +67,7 @@ export type Ranked = Candidate & {
   daysLeft: number | null;
   petMatch: boolean;
   acted: boolean;
+  favorited: boolean;
   /** The user's own verdict on this item, if they gave one. */
   vote: boolean | null;
   impact: PersonalImpact;
@@ -129,6 +132,8 @@ export function affinityPoints(topics: string[], affinity: Map<string, number> |
 
 /** Points for an item the user explicitly marked relevant: enough to clear MIN_SCORE on its own. */
 const VOTED_RELEVANT = 12;
+/** Points for an item the user favorited to follow up on. */
+const FAVORITED_SCORE = 16;
 
 export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
   const { item, analysis } = c;
@@ -136,17 +141,22 @@ export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
   let score = 0;
   let petMatch = false;
 
+  const favorited = u.favoritedIds?.has(item.id) ?? false;
   const vote = u.votes?.get(item.id) ?? null;
-  if (vote === false) return null;
+  if (vote === false && !favorited) return null;
   if (vote) {
     score += VOTED_RELEVANT;
     reasons.push("You marked this relevant");
   }
+  if (favorited) {
+    score += FAVORITED_SCORE;
+    reasons.push("You favorited this to follow up on");
+  }
 
   const deadline = deadlineOf(item);
   const daysLeft = deadline ? Math.ceil((deadline.getTime() - u.now.getTime()) / DAY) : null;
-  // Deadline passed and nothing else is happening → not actionable.
-  if (daysLeft !== null && daysLeft < 0 && item.type === "comment_period") return null;
+  // Deadline passed and nothing else is happening → not actionable (unless favorited for follow-up).
+  if (daysLeft !== null && daysLeft < 0 && item.type === "comment_period" && !favorited) return null;
 
   // Interests: pet issues dominate.
   let topicPoints = 0;
@@ -213,13 +223,13 @@ export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
   // Locality, urgency, and rep sponsorship alone don't make a minor item relevant: it must connect to the
   // user's issues/profile somehow, unless it's a major item in their jurisdiction.
   const connected =
-    vote === true || learned > 0 || petMatch || topicPoints > 0 || groupHits.length > 0 || viaFact.length > 0;
+    favorited || vote === true || learned > 0 || petMatch || topicPoints > 0 || groupHits.length > 0 || viaFact.length > 0;
   if (!connected && analysis.significance < 4) return null;
 
   const acted = u.actedItemIds.has(item.id);
-  if (acted) score -= 10;
+  if (acted && !favorited) score -= 10;
 
-  return { ...c, score, reasons: [...new Set(reasons)], deadline, daysLeft, petMatch, acted, vote, impact };
+  return { ...c, score, reasons: [...new Set(reasons)], deadline, daysLeft, petMatch, acted, favorited, vote, impact };
 }
 
 function impactFor(c: Candidate, u: UserContext, matches: InterestMatch[]): PersonalImpact {
@@ -245,10 +255,10 @@ export function matchesLevel(item: Pick<FeedItem, "level">, level: FeedLevel): b
 }
 
 /** Count uncapped non-acted matches across the mutually exclusive level tabs. */
-export function countByLevel(ranked: Pick<Ranked, "item" | "acted">[]): Record<FeedLevel, number> {
+export function countByLevel(ranked: (Pick<Ranked, "item" | "acted"> & { favorited?: boolean })[]): Record<FeedLevel, number> {
   const counts: Record<FeedLevel, number> = { all: 0, city: 0, state: 0, federal: 0 };
   for (const r of ranked) {
-    if (r.acted) continue;
+    if (r.acted && !r.favorited) continue;
     counts.all++;
     if (matchesLevel(r.item, "city")) counts.city++;
     else if (r.item.level === "state") counts.state++;
@@ -259,12 +269,14 @@ export function countByLevel(ranked: Pick<Ranked, "item" | "acted">[]): Record<F
 
 export type FeedSections = {
   actNow: Ranked[];
+  followingUp: Ranked[];
   radar: Ranked[];
   done: Ranked[];
 };
 
 export type FeedSectionTotals = {
   actNow: number;
+  followingUp: number;
   radar: number;
   done: number;
 };
@@ -274,19 +286,22 @@ export type SectionedFeed = FeedSections & {
 };
 
 export function sectionRanked(ranked: Ranked[], limitPerSection = FEED_SECTION_LIMIT): SectionedFeed {
-  const feed: FeedSections = { actNow: [], radar: [], done: [] };
+  const feed: FeedSections = { actNow: [], followingUp: [], radar: [], done: [] };
   for (const r of ranked) {
-    if (r.acted) feed.done.push(r);
+    if (r.acted && !r.favorited) feed.done.push(r);
     else if (r.daysLeft !== null && r.daysLeft >= 0 && r.daysLeft <= 14) feed.actNow.push(r);
+    else if (r.favorited) feed.followingUp.push(r);
     else feed.radar.push(r);
   }
-  feed.actNow.sort((a, b) => (a.daysLeft ?? 99) - (b.daysLeft ?? 99) || b.score - a.score);
+  feed.actNow.sort((a, b) => (a.daysLeft ?? 99) - (b.daysLeft ?? 99) || Number(b.favorited) - Number(a.favorited) || b.score - a.score);
   return {
     actNow: feed.actNow.slice(0, limitPerSection),
+    followingUp: feed.followingUp.slice(0, limitPerSection),
     radar: feed.radar.slice(0, limitPerSection),
     done: feed.done.slice(0, limitPerSection),
     totals: {
       actNow: feed.actNow.length,
+      followingUp: feed.followingUp.length,
       radar: feed.radar.length,
       done: feed.done.length,
     },
@@ -307,7 +322,7 @@ export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSecti
   const scored = candidates.map((c) => ({ c, r: scoreCandidate(c, u) }));
   const ranked = scored
     .map((x) => x.r)
-    .filter((r): r is Ranked => !!r && (r.score >= MIN_SCORE || r.acted))
+    .filter((r): r is Ranked => !!r && (r.score >= MIN_SCORE || r.acted || r.favorited))
     .sort((a, b) => b.score - a.score);
 
   // Questions come from what's in the feed, plus (weakly) local items we hid only because we couldn't
@@ -317,7 +332,7 @@ export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSecti
     .filter((x) => !shown.has(x.c.item.id) && u.votes?.get(x.c.item.id) !== false)
     .filter((x) => !(x.c.item.type === "comment_period" && x.r === null && isClosed(x.c.item, u.now)))
     .map((x) => ({ score: 1, impact: x.r?.impact ?? impactFor(x.c, u, []) }));
-  const questions = rankOpenQuestions([...ranked.filter((r) => !r.acted), ...hidden]);
+  const questions = rankOpenQuestions([...ranked.filter((r) => !r.acted || r.favorited), ...hidden]);
 
   const sections = sectionRanked(ranked, limitPerSection);
   return {
@@ -325,18 +340,21 @@ export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSecti
     ranked,
     questions,
     rankedIds: shown,
-    shownIds: new Set([sections.actNow, sections.radar, sections.done].flatMap((rs) => rs.map((r) => r.item.id))),
+    shownIds: new Set(
+      [sections.actNow, sections.followingUp, sections.radar, sections.done].flatMap((rs) => rs.map((r) => r.item.id)),
+    ),
   };
 }
 
 /** Why an indexed item is or isn't in the user's feed, for the Browse page. */
-export type FeedStatus = "in_feed" | "acted" | "not_relevant" | "outside_area" | "inactive" | "ranked_lower" | "no_match";
+export type FeedStatus = "in_feed" | "favorited" | "acted" | "not_relevant" | "outside_area" | "inactive" | "ranked_lower" | "no_match";
 
 export function feedStatus(
   itemId: string,
-  where: { inArea: boolean; active: boolean; vote: boolean | null },
+  where: { inArea: boolean; active: boolean; vote: boolean | null; favorited?: boolean },
   feed: Pick<Feed, "rankedIds" | "shownIds" | "done">,
 ): FeedStatus {
+  if (where.favorited) return "favorited";
   if (where.vote === false) return "not_relevant";
   if (feed.done.some((r) => r.item.id === itemId)) return "acted";
   if (feed.shownIds.has(itemId)) return "in_feed";

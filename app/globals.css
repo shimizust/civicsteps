@@ -14,6 +14,8 @@
   --color-cost-soft: #fae8e6;
   --color-pet: #6a3fb5;
   --color-pet-soft: #efe8fb;
+  --color-favorite: #855700;
+  --color-favorite-soft: #fcf1d4;
   --color-benefit: #23824a;
   --color-benefit-soft: #e2f3e8;
   --shadow-card-hover: 0 12px 24px -12px rgba(28, 35, 33, 0.14);
@@ -36,6 +38,8 @@
     --color-cost-soft: #3a1f1d;
     --color-pet: #b896f0;
     --color-pet-soft: #2a2139;
+    --color-favorite: #ecc35d;
+    --color-favorite-soft: #352b14;
     --color-benefit: #6fd39a;
     --color-benefit-soft: #16301f;
     --shadow-card-hover: 0 12px 28px -10px rgba(0, 0, 0, 0.55);

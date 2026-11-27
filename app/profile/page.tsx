@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Flame, Star } from "lucide-react";
+import { ArrowRight, Bookmark, Flame, Star } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
-import { getAnswers, getInterests, getProfile, getRegistry, getStats } from "@/lib/data";
+import { getAnswers, getFavoriteIds, getInterests, getProfile, getRegistry, getStats } from "@/lib/data";
 import { factQuestion, PROFILE_PREFIX } from "@/lib/facts";
 import { DEMOGRAPHIC_QUESTIONS } from "@/lib/taxonomy";
 import { FactQuestion, ForgetAnswer } from "@/components/FactQuestion";
@@ -23,11 +23,12 @@ const POINT_ROWS = [
 export default async function ProfilePage() {
   const { supabase, user } = await requireUser();
   if (!user) redirect("/login?next=/profile");
-  const [stats, profile, interests, answers] = await Promise.all([
+  const [stats, profile, interests, answers, favoriteIds] = await Promise.all([
     getStats(supabase, user.id),
     getProfile(supabase, user.id),
     getInterests(supabase, user.id),
     getAnswers(supabase, user.id),
+    getFavoriteIds(supabase, user.id),
   ]);
   const registry = await getRegistry(supabase, Object.keys(answers).filter((k) => !k.startsWith(PROFILE_PREFIX)));
   const factAnswers = Object.entries(answers).flatMap(([key, value]) => {
@@ -184,6 +185,28 @@ export default async function ProfilePage() {
             )}
           </div>
         </Card>
+
+        <Card className="sm:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Kicker className="inline-flex items-center gap-1">
+              <Bookmark className="h-3.5 w-3.5 text-favorite" aria-hidden /> Favorited issues
+            </Kicker>
+            <Link className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline" href="/favorites">
+              View favorites <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </div>
+          <p className="mt-2 text-sm text-muted">
+            {favoriteIds.size > 0 ? (
+              <>
+                You&apos;re following up on{" "}
+                <strong className="font-medium tabular-nums text-ink">{favoriteIds.size}</strong>{" "}
+                {favoriteIds.size === 1 ? "issue" : "issues"} for status changes and deadlines.
+              </>
+            ) : (
+              "Favorite any bill, hearing, or comment period to keep following up on updates and deadlines."
+            )}
+          </p>
+        </Card>
       </div>
 
       <SectionTitle hint={<Link className="text-accent hover:underline" href="/onboarding?step=2">Edit profile answers</Link>}>
@@ -239,7 +262,7 @@ export default async function ProfilePage() {
           <div>
             <p className="font-medium">Email notifications</p>
             <p className="text-muted">
-              Pet issue alerts: {profile?.notify_alerts ? "on" : "off"} · Weekly digest: {profile?.notify_digest ? "on" : "off"}
+              Pet issue &amp; favorite alerts: {profile?.notify_alerts ? "on" : "off"} · Weekly digest: {profile?.notify_digest ? "on" : "off"}
             </p>
           </div>
           <Link className="font-medium text-accent hover:underline" href="/onboarding?step=5">

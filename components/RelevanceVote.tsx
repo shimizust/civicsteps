@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { setRelevance } from "@/app/actions";
 import { cx } from "@/components/ui";
@@ -26,6 +26,10 @@ export function RelevanceVote({
   const [vote, setVote] = useState(current);
   const [error, setError] = useState(false);
   const [pending, start] = useTransition();
+
+  useEffect(() => {
+    setVote(current);
+  }, [current]);
 
   const save = (next: boolean) => {
     const value = vote === next ? null : next;
