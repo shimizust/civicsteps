@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { RotateCcw, X } from "lucide-react";
-import { setRelevance } from "@/app/actions";
+import { setFavorite, setRelevance } from "@/app/actions";
 import type { Ranked } from "@/lib/relevance";
 import type { Database } from "@/lib/supabase/database.types";
 import type { Place } from "@/lib/data";
@@ -15,6 +15,7 @@ export type FeedEntry = {
   r: Ranked;
   reps: Official[];
   place?: Place;
+  updateSummary?: string | null;
 };
 
 /**
@@ -22,7 +23,7 @@ export type FeedEntry = {
  */
 export function FeedList({ entries, hero }: { entries: FeedEntry[]; hero?: boolean }) {
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
-  const [toast, setToast] = useState<{ id: string; headline: string } | null>(null);
+  const [toast, setToast] = useState<{ id: string; headline: string; wasFavorited: boolean } | null>(null);
   const [pending, start] = useTransition();
 
   useEffect(() => {
@@ -36,16 +37,17 @@ export function FeedList({ entries, hero }: { entries: FeedEntry[]; hero?: boole
       const entry = entries.find((e) => e.r.item.id === itemId);
       const headline = entry?.r.analysis.headline?.trim() || entry?.r.item.title || "Item";
       setHiddenIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));
-      setToast({ id: itemId, headline });
+      setToast({ id: itemId, headline, wasFavorited: Boolean(entry?.r.favorited) });
     }
   }
 
   function undo() {
     if (!toast) return;
-    const id = toast.id;
+    const { id, wasFavorited } = toast;
     start(async () => {
       const res = await setRelevance(id, null, "feed");
-      if (res.ok) {
+      const favRes = wasFavorited ? await setFavorite(id, true, "feed") : { ok: true };
+      if (res.ok && favRes.ok) {
         setHiddenIds((prev) => prev.filter((x) => x !== id));
         setToast(null);
       }
@@ -58,7 +60,7 @@ export function FeedList({ entries, hero }: { entries: FeedEntry[]; hero?: boole
     <>
       {visible.length ? (
         <ul className="space-y-3">
-          {visible.map(({ r, reps, place }, i) => (
+          {visible.map(({ r, reps, place, updateSummary }, i) => (
             <li key={r.item.id}>
               <ItemCard
                 r={r}
@@ -67,6 +69,9 @@ export function FeedList({ entries, hero }: { entries: FeedEntry[]; hero?: boole
                 place={place}
                 showVote
                 onVote={handleVote}
+                showFavorite
+                favoriteSource="feed"
+                updateSummary={updateSummary}
               />
             </li>
           ))}

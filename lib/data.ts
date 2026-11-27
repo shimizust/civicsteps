@@ -1,11 +1,12 @@
 /** Server-side data loaders shared by pages. All take a user-scoped Supabase client (RLS applies). */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import { buildFeed, learnTopicAffinity, type Candidate, type FeedAnalysis, type FeedItem, type Interest } from "@/lib/relevance";
+import { buildFeed, deadlineOf, learnTopicAffinity, matchInterests, type Candidate, type FeedAnalysis, type FeedItem, type Interest } from "@/lib/relevance";
 import { expandTopics, groupsForDemographics, type Demographics } from "@/lib/taxonomy";
 import type { Answers, Fact, Registry } from "@/lib/facts";
-import type { ImpactInput } from "@/lib/impact";
+import { personalImpact, type ImpactInput, type PersonalImpact } from "@/lib/impact";
 import { badgeProgress, levelForPoints, weeklyStreak, VOICE_ACTIONS, type ActionRecord, type ActionType, type ItemType, type Level } from "@/lib/gamification";
+import { favoriteUpdate, sortFavorites, type FavoriteRecord, type FavoriteUpdate } from "@/lib/favorites";
 import { nearest, type Point } from "@/lib/locations";
 
 /** The nearest site an item names, for the "1.2 mi from you" chip. */
@@ -86,17 +87,39 @@ export async function getUserContext(db: DB, userId: string) {
   };
 }
 
-/** The user's "is this relevant?" votes, and the per-topic lean learned from them. */
-export async function getVotes(db: DB, userId: string) {
-  const { data } = await db.from("item_feedback").select("item_id, relevant").eq("user_id", userId);
-  const votes = new Map((data ?? []).map((v) => [v.item_id, v.relevant]));
-  const ids = [...votes.keys()];
+export async function getFavorites(db: DB, userId: string): Promise<FavoriteRecord[]> {
+  const { data } = await db
+    .from("item_favorites")
+    .select("item_id, created_at, last_seen_at, last_seen_status, last_seen_action, last_seen_action_at, last_seen_enacted_at, last_seen_deadline")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function getFavoriteIds(db: DB, userId: string): Promise<Set<string>> {
+  const { data } = await db.from("item_favorites").select("item_id").eq("user_id", userId);
+  return new Set((data ?? []).map((r) => r.item_id));
+}
+
+async function topicAffinityFromVotes(db: DB, votes: Map<string, boolean>, extraPositiveIds: Iterable<string> = []) {
+  const extra = [...new Set(extraPositiveIds)].filter((id) => !votes.has(id));
+  const ids = [...votes.keys(), ...extra];
   const topics = new Map<string, string[]>();
   for (let i = 0; i < ids.length; i += 150) {
     const { data: rows } = await db.from("item_analysis").select("item_id, topics").in("item_id", ids.slice(i, i + 150));
     for (const r of rows ?? []) topics.set(r.item_id, r.topics);
   }
-  const affinity = learnTopicAffinity(ids.map((id) => ({ relevant: votes.get(id)!, topics: topics.get(id) ?? [] })));
+  return learnTopicAffinity([
+    ...[...votes.keys()].map((id) => ({ relevant: votes.get(id)!, topics: topics.get(id) ?? [] })),
+    ...extra.map((id) => ({ relevant: true, topics: topics.get(id) ?? [] })),
+  ]);
+}
+
+/** The user's "is this relevant?" votes, and the per-topic lean learned from them (plus favorited items). */
+export async function getVotes(db: DB, userId: string, extraPositiveIds: Iterable<string> = []) {
+  const { data } = await db.from("item_feedback").select("item_id, relevant").eq("user_id", userId);
+  const votes = new Map((data ?? []).map((v) => [v.item_id, v.relevant]));
+  const affinity = await topicAffinityFromVotes(db, votes, extraPositiveIds);
   return { votes, affinity };
 }
 
@@ -117,18 +140,25 @@ export async function nearestPlaces(db: DB, home: Point | null, itemIds: string[
 }
 
 export async function getFeed(db: DB, userId: string) {
-  const [{ profile, interests, groups, demographics, answers }, candidatesRes, actionsRes, { votes, affinity }] = await Promise.all([
+  const [{ profile, interests, groups, demographics, answers }, candidatesRes, actionsRes, feedbackRes, favorites] = await Promise.all([
     getUserContext(db, userId),
     db.rpc("feed_candidates", { p_limit: 400 }),
     db.from("user_actions").select("item_id, type").eq("user_id", userId),
-    getVotes(db, userId),
+    db.from("item_feedback").select("item_id, relevant").eq("user_id", userId),
+    getFavorites(db, userId),
   ]);
   if (candidatesRes.error) throw candidatesRes.error;
   const acted = new Set(
     (actionsRes.data ?? []).filter((a) => a.item_id && VOICE_ACTIONS.includes(a.type as ActionType)).map((a) => a.item_id!),
   );
+  const votes = new Map((feedbackRes.data ?? []).map((v) => [v.item_id, v.relevant]));
+  const favoriteMap = new Map(favorites.map((f) => [f.item_id, f]));
+  const favoritedIds = new Set(favoriteMap.keys());
   const candidates = (candidatesRes.data ?? []) as unknown as Candidate[];
-  const registry = await getRegistry(db, candidates.flatMap((c) => factKeysOf(c.analysis.impacts)));
+  const [registry, affinity] = await Promise.all([
+    getRegistry(db, candidates.flatMap((c) => factKeysOf(c.analysis.impacts))),
+    topicAffinityFromVotes(db, votes, favoritedIds),
+  ]);
   const feed = buildFeed(candidates, {
     interests,
     groups,
@@ -138,14 +168,149 @@ export async function getFeed(db: DB, userId: string) {
     jurisdictionIds: profile?.jurisdiction_ids ?? [],
     actedItemIds: acted,
     votes,
+    favoritedIds,
     affinity,
     now: new Date(),
   });
+  const favoriteUpdates: Record<string, string> = {};
+  for (const r of feed.ranked) {
+    const fav = favoriteMap.get(r.item.id);
+    if (!fav) continue;
+    const upd = favoriteUpdate(r.item, fav);
+    if (upd.changed && upd.summary) favoriteUpdates[r.item.id] = upd.summary;
+  }
   const home = profile?.lat != null && profile?.lng != null ? { lat: profile.lat, lng: profile.lng } : null;
   const shown = feed.ranked
-    .filter((r) => !r.acted && (r.item.level === "city" || r.item.level === "county"))
+    .filter((r) => (!r.acted || r.favorited) && (r.item.level === "city" || r.item.level === "county"))
     .map((r) => r.item.id);
-  return { ...feed, places: await nearestPlaces(db, home, shown) };
+  return {
+    ...feed,
+    places: await nearestPlaces(db, home, shown),
+    favoriteUpdates,
+    favoriteCount: favorites.length,
+  };
+}
+
+type OfficialRow = Database["public"]["Tables"]["officials"]["Row"];
+export type LoggedAction = { type: ActionType; created_at: string };
+
+export type FavoritedEntry = {
+  item: FeedItem;
+  analysis: FeedAnalysis;
+  favoritedAt: string;
+  lastSeenAt: string;
+  update: FavoriteUpdate;
+  deadline: Date | null;
+  daysLeft: number | null;
+  petMatch: boolean;
+  impact: PersonalImpact;
+  reps: OfficialRow[];
+  place?: Place;
+  actions: LoggedAction[];
+};
+
+const EMPTY_ANALYSIS: FeedAnalysis = {
+  headline: null,
+  impacts: [],
+  summary: "",
+  why_it_matters: null,
+  topics: [],
+  affected_groups: [],
+  keywords: [],
+  significance: 3,
+};
+
+/** All issues the user favorited to keep following up on, sorted by updates and urgency. */
+export async function getFavoritedItems(db: DB, userId: string): Promise<{
+  entries: FavoritedEntry[];
+  totalCount: number;
+  updatedCount: number;
+}> {
+  const [favRes, ctx, myOfficials, actionsRes] = await Promise.all([
+    db
+      .from("item_favorites")
+      .select(
+        "item_id, created_at, last_seen_at, last_seen_status, last_seen_action, last_seen_action_at, last_seen_enacted_at, last_seen_deadline, items(*, item_analysis(*), item_officials(role, vote, officials(*)), item_locations(address, lat, lng))",
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    getUserContext(db, userId),
+    getMyOfficials(db, userId),
+    db.from("user_actions").select("item_id, type, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
+  ]);
+  if (favRes.error) throw favRes.error;
+
+  const rows = (favRes.data ?? []).filter((r): r is typeof r & { items: NonNullable<typeof r.items> } => !!r.items);
+  const impactKeys = rows.flatMap((r) => factKeysOf((r.items.item_analysis as unknown as FeedAnalysis | null)?.impacts));
+  const registry = await getRegistry(db, impactKeys);
+
+  const myOfficialIds = new Set(myOfficials.map((o) => o.id));
+  const home = ctx.profile?.lat != null && ctx.profile?.lng != null ? { lat: ctx.profile.lat, lng: ctx.profile.lng } : null;
+  const actionsByItem = new Map<string, LoggedAction[]>();
+  for (const a of actionsRes.data ?? []) {
+    if (!a.item_id || a.type === "read") continue;
+    const list = actionsByItem.get(a.item_id) ?? [];
+    list.push({ type: a.type as ActionType, created_at: a.created_at });
+    actionsByItem.set(a.item_id, list);
+  }
+
+  const nowMs = Date.now();
+  const raw: FavoritedEntry[] = rows.map((row) => {
+    const rawItem = row.items;
+    const item = rawItem as unknown as FeedItem;
+    const analysis = (rawItem.item_analysis as unknown as FeedAnalysis | null) ?? {
+      ...EMPTY_ANALYSIS,
+      summary: rawItem.description ?? "",
+    };
+    const matches = matchInterests({ item, analysis }, ctx.interests);
+    const petMatch = matches.some((m) => m.interest.is_pet);
+    const impact = personalImpact(analysis.impacts, {
+      groups: ctx.groups,
+      matched: matches.map((m) => m.interest),
+      demographics: ctx.demographics,
+      answers: ctx.answers,
+      registry,
+    });
+    const deadline = deadlineOf(item);
+    const daysLeft = deadline ? Math.ceil((deadline.getTime() - nowMs) / 86_400_000) : null;
+    const update = favoriteUpdate(rawItem, row);
+
+    const seenRepIds = new Set<string>();
+    const reps: OfficialRow[] = [];
+    for (const io of rawItem.item_officials ?? []) {
+      const o = io.officials;
+      if (o && myOfficialIds.has(o.id) && !seenRepIds.has(o.id)) {
+        seenRepIds.add(o.id);
+        reps.push(o);
+      }
+    }
+
+    const locs = rawItem.item_locations ?? [];
+    const near = home && locs.length ? nearest(home, locs) : null;
+    const place = near ? { address: near.address, miles: near.miles, count: locs.length } : undefined;
+
+    return {
+      item,
+      analysis,
+      favoritedAt: row.created_at,
+      lastSeenAt: row.last_seen_at,
+      update,
+      deadline,
+      daysLeft,
+      petMatch,
+      impact,
+      reps,
+      place,
+      actions: actionsByItem.get(item.id) ?? [],
+    };
+  });
+
+  const entries = sortFavorites(raw);
+  return {
+    entries,
+    totalCount: entries.length,
+    updatedCount: entries.filter((e) => e.update.changed).length,
+  };
 }
 
 /** How much is indexed, and how much of it is in the user's area and still active. */

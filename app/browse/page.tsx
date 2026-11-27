@@ -2,21 +2,23 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Calendar, Clock, Search, X } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
-import { BROWSE_PAGE_SIZE, browseItems, getAreaProgress, getFeed, getIndexCounts, getProfile, type BrowseRow } from "@/lib/data";
+import { BROWSE_PAGE_SIZE, browseItems, getAreaProgress, getFavoriteIds, getFeed, getIndexCounts, getProfile, type BrowseRow } from "@/lib/data";
 import { areasFor } from "@/lib/coverage";
 import { feedStatus, type Feed, type FeedStatus } from "@/lib/relevance";
 import { TOPICS, TOPIC_SLUGS } from "@/lib/taxonomy";
 import { typeLabel } from "@/components/ItemCard";
 import { TopicTile } from "@/components/TopicTile";
 import { RelevanceVote } from "@/components/RelevanceVote";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { BrowseFilters } from "@/components/BrowseFilters";
 import { LocalIndexProgress } from "@/components/LocalIndexProgress";
 import { Card, Empty, Input, Kicker, LEVEL_LABEL, LinkButton, PageTitle, Pill, cx, deadlineLabel } from "@/components/ui";
 
 const LEVELS = ["all", "city", "state", "federal"] as const;
 
-const STATUS: Record<FeedStatus, { label: string; tone: "accent" | "neutral" | "cost"; hint?: string }> = {
+const STATUS: Record<FeedStatus, { label: string; tone: "accent" | "neutral" | "cost" | "favorite"; hint?: string }> = {
   in_feed: { label: "In your feed", tone: "accent" },
+  favorited: { label: "Favorited", tone: "favorite", hint: "Pinned to your Favorites and Following up feed" },
   acted: { label: "You acted", tone: "accent" },
   not_relevant: { label: "Hidden: marked not relevant", tone: "cost" },
   outside_area: { label: "Outside your area", tone: "neutral", hint: "Not for where you live, so it can't reach your feed" },
@@ -41,11 +43,12 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   const sort = sp.sort === "deadline" ? "deadline" : "recent";
   const page = Math.max(0, Number.parseInt(sp.page ?? "0", 10) || 0);
 
-  const [{ rows, total }, feed, counts, coverage] = await Promise.all([
+  const [{ rows, total }, feed, counts, coverage, favoriteIds] = await Promise.all([
     browseItems(supabase, { query: q, level, scope, topic, sort, page }),
     getFeed(supabase, user.id),
     getIndexCounts(supabase),
     getAreaProgress(supabase, areasFor(profile.state, profile.jurisdiction_ids)),
+    getFavoriteIds(supabase, user.id),
   ]);
 
   const href = (over: Partial<Params>) => {
@@ -174,7 +177,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         <ul className="space-y-2.5">
           {rows.map((r) => (
             <li key={r.item.id}>
-              <Row r={r} feed={feed} />
+              <Row r={r} feed={feed} favorited={favoriteIds.has(r.item.id)} />
             </li>
           ))}
         </ul>
@@ -207,10 +210,10 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   );
 }
 
-function Row({ r, feed }: { r: BrowseRow; feed: Feed }) {
+function Row({ r, feed, favorited }: { r: BrowseRow; feed: Feed; favorited: boolean }) {
   const { item, analysis } = r;
   const headline = analysis.headline?.trim() || item.title;
-  const status = STATUS[feedStatus(item.id, r, feed)];
+  const status = STATUS[feedStatus(item.id, { ...r, favorited }, feed)];
   const deadline = item.comment_deadline ?? item.event_at;
   const daysLeft = deadline ? Math.ceil((new Date(deadline).getTime() - Date.now()) / 86_400_000) : null;
   const open = daysLeft !== null && daysLeft >= 0;
@@ -246,7 +249,10 @@ function Row({ r, feed }: { r: BrowseRow; feed: Feed }) {
         </Link>
         {analysis.summary && <p className="mt-1 line-clamp-2 text-sm text-muted">{analysis.summary}</p>}
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-          <RelevanceVote itemId={item.id} current={r.vote} source="browse" />
+          <div className="flex flex-wrap items-center gap-2">
+            <RelevanceVote itemId={item.id} current={r.vote} source="browse" />
+            <FavoriteButton itemId={item.id} favorited={favorited} source="browse" size="sm" />
+          </div>
           {status.hint && <span className="text-xs text-muted">{status.hint}</span>}
         </div>
       </div>

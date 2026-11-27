@@ -786,8 +786,8 @@ function AlertsStep({
           icon={<Bell className="h-5 w-5 text-pet" aria-hidden />}
           checked={prefs.alerts}
           onChange={(alerts) => setPrefs((p) => ({ ...p, alerts }))}
-          title="Pet issue alerts"
-          body="An email when something new comes up on a pet issue, and a reminder 3 days before a deadline."
+          title="Pet issue & favorite alerts"
+          body="An email when something new comes up on a pet issue, when a favorited issue has an update, and a reminder 3 days before a deadline."
         />
         <Toggle
           icon={<Mail className="h-5 w-5 text-accent" aria-hidden />}

@@ -1,8 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { Clock, ExternalLink, MapPin, PenLine } from "lucide-react";
+import { Bookmark, Clock, ExternalLink, MapPin, PenLine } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { factKeysOf, getItem, getMyOfficials, getRegistry, getUserContext } from "@/lib/data";
+import { favoriteUpdate } from "@/lib/favorites";
 import { aiConfigured } from "@/lib/ai/client";
 import { assessmentHash, type Assessment } from "@/lib/ai/assess";
 import { AssessPanel } from "@/components/AssessPanel";
@@ -18,6 +19,7 @@ import type { ActionType } from "@/lib/gamification";
 import { ActionPanel, MarkRead } from "@/components/ActionPanel";
 import { OfficialCard } from "@/components/OfficialCard";
 import { RelevanceVote } from "@/components/RelevanceVote";
+import { FavoriteButton, MarkFavoriteSeen } from "@/components/FavoriteButton";
 import { IssueSummary } from "@/components/IssueSummary";
 import { ItemMap } from "@/components/ItemMap";
 import { formatMiles, milesBetween } from "@/lib/locations";
@@ -29,14 +31,24 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const { supabase, user } = await requireUser();
   if (!user) redirect(`/login?next=/items/${id}`);
 
-  const [item, mine, ctx, myActions, myVote] = await Promise.all([
+  const [item, mine, ctx, myActions, myVote, myFavorite] = await Promise.all([
     getItem(supabase, id),
     getMyOfficials(supabase, user.id),
     getUserContext(supabase, user.id),
     supabase.from("user_actions").select("type").eq("user_id", user.id).eq("item_id", id),
     supabase.from("item_feedback").select("relevant").eq("user_id", user.id).eq("item_id", id).maybeSingle(),
+    supabase
+      .from("item_favorites")
+      .select(
+        "item_id, created_at, last_seen_at, last_seen_status, last_seen_action, last_seen_action_at, last_seen_enacted_at, last_seen_deadline",
+      )
+      .eq("user_id", user.id)
+      .eq("item_id", id)
+      .maybeSingle(),
   ]);
   if (!item) notFound();
+  const favorite = myFavorite.data;
+  const favUpdate = favorite ? favoriteUpdate(item, favorite) : null;
   const a = item.item_analysis;
   const analysis = a as unknown as FeedAnalysis | null;
   const matches = analysis ? matchInterests({ item, analysis }, ctx.interests) : [];
@@ -96,23 +108,27 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   return (
     <article>
       <MarkRead itemId={item.id} />
+      {favorite && favUpdate?.changed && <MarkFavoriteSeen itemId={item.id} />}
       <BackLink fallbackHref="/feed" fallbackLabel="Back to feed" />
 
       <header className="mt-4 flex items-start gap-4">
         <TopicTile topics={a?.topics ?? []} pet={isPet} size="lg" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-            <Kicker>
-              {LEVEL_LABEL[item.level]} · {typeLabel(item)}
-              {item.agency ? ` · ${item.agency}` : ""}
-            </Kicker>
-            {daysLeft !== null && daysLeft >= 0 && (
-              <Pill tone={daysLeft <= 7 ? "urgent" : "accent"} className="tabular-nums">
-                <Clock className="h-3 w-3" aria-hidden />
-                {deadlineLabel(daysLeft, isComment ? "comment" : "event")}
-              </Pill>
-            )}
-            {daysLeft !== null && daysLeft < 0 && isComment && <Pill tone="neutral">Comment period closed</Pill>}
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <Kicker>
+                {LEVEL_LABEL[item.level]} · {typeLabel(item)}
+                {item.agency ? ` · ${item.agency}` : ""}
+              </Kicker>
+              {daysLeft !== null && daysLeft >= 0 && (
+                <Pill tone={daysLeft <= 7 ? "urgent" : "accent"} className="tabular-nums">
+                  <Clock className="h-3 w-3" aria-hidden />
+                  {deadlineLabel(daysLeft, isComment ? "comment" : "event")}
+                </Pill>
+              )}
+              {daysLeft !== null && daysLeft < 0 && isComment && <Pill tone="neutral">Comment period closed</Pill>}
+            </div>
+            <FavoriteButton itemId={item.id} favorited={!!favorite} source="item" size="md" />
           </div>
           <h1 className="mt-2.5 font-display text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
             {headline ?? item.title}
@@ -124,8 +140,26 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
               {item.last_action_at && ` (${new Date(item.last_action_at).toLocaleDateString()})`}
             </p>
           )}
+          {item.last_action && item.last_action !== item.status && (
+            <p className="mt-1 text-sm tabular-nums text-muted">
+              Latest action: {item.last_action}
+              {!item.status && item.last_action_at && ` (${new Date(item.last_action_at).toLocaleDateString()})`}
+            </p>
+          )}
         </div>
       </header>
+
+      {favorite && favUpdate?.changed && favUpdate.summary && (
+        <div
+          role="status"
+          className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-favorite/40 bg-favorite-soft px-4 py-3 text-sm text-favorite"
+        >
+          <Bookmark className="h-4 w-4 shrink-0 fill-current" aria-hidden />
+          <p>
+            <strong className="font-semibold">Updated since you last checked:</strong> {favUpdate.summary}
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start lg:gap-8">
         {/* Left main column: What is this? -> How does it affect me? -> Where? */}
@@ -138,7 +172,9 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">Is this relevant to you?</p>
-                  <p className="text-xs text-muted">Your answer tunes your feed for this item and similar topics.</p>
+                  <p className="text-xs text-muted">
+                    Your answer tunes your feed for this item and similar topics. Favorite this issue above to keep following up on updates.
+                  </p>
                 </div>
                 <RelevanceVote itemId={item.id} current={myVote.data?.relevant ?? null} source="item" size="sm" />
               </div>

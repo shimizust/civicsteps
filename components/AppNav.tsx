@@ -3,12 +3,13 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Newspaper, User, Users } from "lucide-react";
+import { Bookmark, Compass, Newspaper, User, Users } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { cx } from "@/components/ui";
 
 const NAV_ITEMS = [
   { href: "/feed", label: "Feed", mobileLabel: "Feed", Icon: Newspaper, match: (p: string) => p === "/feed" },
+  { href: "/favorites", label: "Favorites", mobileLabel: "Favorites", Icon: Bookmark, match: (p: string) => p === "/favorites" },
   { href: "/browse", label: "Browse", mobileLabel: "Browse", Icon: Compass, match: (p: string) => p === "/browse" },
   { href: "/reps", label: "My reps", mobileLabel: "Reps", Icon: Users, match: (p: string) => p.startsWith("/reps") },
   { href: "/profile", label: "Profile", mobileLabel: "Profile", Icon: User, match: (p: string) => p === "/profile" },
@@ -79,7 +80,7 @@ export function AppNav({ signedIn, children }: { signedIn: boolean; children?: R
           aria-label="Mobile navigation"
           className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
         >
-          <ul className="mx-auto grid max-w-md grid-cols-4">
+          <ul className="mx-auto grid max-w-md grid-cols-5">
             {NAV_ITEMS.map(({ href, mobileLabel, Icon, match }) => {
               const active = match(pathname);
               return (

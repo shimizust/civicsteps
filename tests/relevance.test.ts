@@ -189,15 +189,15 @@ describe("buildFeed", () => {
     expect(feed.actNow).toHaveLength(2);
     expect(feed.radar).toHaveLength(2);
     expect(feed.done).toHaveLength(2);
-    expect(feed.totals).toEqual({ actNow: 3, radar: 9, done: 3 });
+    expect(feed.totals).toEqual({ actNow: 3, followingUp: 0, radar: 9, done: 3 });
     expect(feed.shownIds.size).toBe(6);
 
     const counts = countByLevel(feed.ranked);
-    expect(feed.totals.actNow + feed.totals.radar).toBe(counts.all);
+    expect(feed.totals.actNow + feed.totals.followingUp + feed.totals.radar).toBe(counts.all);
 
     const fedOnly = sectionRanked(feed.ranked.filter((r) => matchesLevel(r.item, "federal")), 2);
-    expect(fedOnly.totals).toEqual({ actNow: 3, radar: 5, done: 3 });
-    expect(fedOnly.totals.actNow + fedOnly.totals.radar).toBe(counts.federal);
+    expect(fedOnly.totals).toEqual({ actNow: 3, followingUp: 0, radar: 5, done: 3 });
+    expect(fedOnly.totals.actNow + fedOnly.totals.followingUp + fedOnly.totals.radar).toBe(counts.federal);
 
     const where = { inArea: true, active: true, vote: null };
     expect(feedStatus("radar-4", where, feed)).toBe("ranked_lower");
@@ -341,5 +341,56 @@ describe("relevance votes", () => {
     const many = Array.from({ length: 3 }, (_, i) => cand({ id: `m${i}` }, { topics: ["transportation/transit"], significance: 5 }));
     const capped = buildFeed(many, user, 2);
     expect(feedStatus("m2", where, capped)).toBe("ranked_lower");
+  });
+});
+
+describe("favorites in the feed", () => {
+  it("routes a favorited item with no other connection into followingUp", () => {
+    const unrelated = cand({ id: "fav-1", title: "Lighthouse Preservation Act" }, { topics: ["government/postal"], significance: 1 });
+    expect(scoreCandidate(unrelated, user)).toBeNull();
+
+    const feed = buildFeed([unrelated], { ...user, favoritedIds: new Set(["fav-1"]) });
+    expect(feed.followingUp.map((r) => r.item.id)).toEqual(["fav-1"]);
+    expect(feed.followingUp[0].favorited).toBe(true);
+    expect(feed.followingUp[0].reasons).toContain("You favorited this to follow up on");
+  });
+
+  it("places urgent favorited items in actNow ahead of equally urgent non-favorited items", () => {
+    const plainSoon = cand(
+      { id: "soon-plain", type: "comment_period", comment_deadline: inDays(4) },
+      { topics: ["transportation/transit"], significance: 3 },
+    );
+    const favSoon = cand(
+      { id: "soon-fav", type: "comment_period", comment_deadline: inDays(4) },
+      { topics: ["government/postal"], significance: 2 },
+    );
+    const feed = buildFeed([plainSoon, favSoon], { ...user, favoritedIds: new Set(["soon-fav"]) });
+    expect(feed.actNow.map((r) => r.item.id)).toEqual(["soon-fav", "soon-plain"]);
+    expect(feed.followingUp).toHaveLength(0);
+  });
+
+  it("keeps acted favorited items in followingUp rather than done and keeps level counts aligned", () => {
+    const actedFav = cand({ id: "acted-fav", level: "federal" }, { topics: ["transportation/transit"], significance: 3 });
+    const actedOther = cand({ id: "acted-other", level: "federal" }, { topics: ["transportation/transit"], significance: 4 });
+    const feed = buildFeed([actedFav, actedOther], {
+      ...user,
+      favoritedIds: new Set(["acted-fav"]),
+      actedItemIds: new Set(["acted-fav", "acted-other"]),
+    });
+    expect(feed.followingUp.map((r) => r.item.id)).toEqual(["acted-fav"]);
+    expect(feed.done.map((r) => r.item.id)).toEqual(["acted-other"]);
+    const counts = countByLevel(feed.ranked);
+    expect(feed.totals.actNow + feed.totals.followingUp + feed.totals.radar).toBe(counts.all);
+  });
+
+  it("retains closed comment periods when favorited", () => {
+    const closed = cand({ id: "closed-fav", type: "comment_period", comment_deadline: inDays(-3) }, { significance: 2 });
+    const feed = buildFeed([closed], { ...user, favoritedIds: new Set(["closed-fav"]) });
+    expect(feed.followingUp.map((r) => r.item.id)).toEqual(["closed-fav"]);
+  });
+
+  it("reports favorited status in feedStatus regardless of area or activity", () => {
+    const feed = buildFeed([], user);
+    expect(feedStatus("x", { inArea: false, active: false, vote: null, favorited: true }, feed)).toBe("favorited");
   });
 });
