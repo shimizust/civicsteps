@@ -6,7 +6,7 @@
  *   npm run ingest -- --only=analyze --reanalyze --wait   # re-run active items analyzed by an older prompt
  *   npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only --wait   # just backfill new areas
  *
- * Areas are pulled in on demand: state bills only for states where users live, council items for cities in
+ * Areas are pulled in on demand: state bills for states users have saved, council items for cities in
  * legistar.config.ts. The first time a state or city is ingested it is backfilled (as far back as feeds show
  * its items) and recorded in ingest_coverage; after that it gets the usual short lookback. Saving a ZIP in an area
  * that isn't covered yet triggers .github/workflows/backfill.yml (lib/coverage.ts).
@@ -86,22 +86,12 @@ async function syncCouncil(src: (typeof LOCAL_SOURCES)[number]) {
   if (!council.length) return;
   await upsertOfficials(council);
 
-  const { data: residents, error } = await db.from("profiles").select("user_id").contains("jurisdiction_ids", [src.jurisdictionId]);
+  const { data: residents, error } = await db.rpc("sync_council_links", {
+    p_jurisdiction: src.jurisdictionId,
+    p_official_ids: council.map((o) => o.id),
+  });
   if (error) throw error;
-  const { data: seats, error: seatErr } = await db.from("officials").select("id").eq("jurisdiction_id", src.jurisdictionId);
-  if (seatErr) throw seatErr;
-  const current = new Set(council.map((o) => o.id));
-  const former = (seats ?? []).map((o) => o.id).filter((id) => !current.has(id));
-  for (const c of chunk(residents.map((r) => r.user_id), 200)) {
-    if (former.length) {
-      const { error: delErr } = await db.from("user_officials").delete().in("user_id", c).in("official_id", former);
-      if (delErr) throw delErr;
-    }
-    const links = c.flatMap((user_id) => council.map((o) => ({ user_id, official_id: o.id })));
-    const { error: upErr } = await db.from("user_officials").upsert(links, { onConflict: "user_id,official_id", ignoreDuplicates: true });
-    if (upErr) throw upErr;
-  }
-  log(`officials: ${council.length} ${src.name} council, linked to ${residents.length} residents`);
+  log(`officials: ${council.length} ${src.name} council, linked to ${residents} residents`);
 }
 
 /** Upserts items; resets analysis only when analysis-relevant content changed. Returns count of new/changed. */
@@ -217,14 +207,11 @@ async function recordBackfill(scope: string, failure: string | null) {
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
 
-/** State bills for every state a user lives in; states seen for the first time get a deeper backfill. */
+/** State bills for saved areas; states seen for the first time get a deeper backfill. */
 async function ingestStates() {
   if (!should("openstates")) return;
-  const { data: profiles, error } = await db.from("profiles").select("state").not("state", "is", null);
+  const { data: states, error } = await db.rpc("states_to_ingest");
   if (error) throw error;
-  const { data: requests, error: requestError } = await db.from("ingest_coverage").select("scope").like("scope", "state:%").is("backfilled_at", null);
-  if (requestError) throw requestError;
-  const states = [...new Set([...profiles.map((p) => p.state!), ...requests.map((r) => r.scope.slice(6))])].sort();
   const covered = await loadCovered(states.map(stateScope));
   if (!covered && NEW_AREAS_ONLY) return;
 

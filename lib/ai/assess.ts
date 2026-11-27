@@ -132,10 +132,10 @@ export function buildAssessPrompt(input: AssessInput): string {
 }
 
 /** Changes whenever anything the assessment depended on changes, so a stale cached answer isn't shown as current. */
-export function assessmentHash(parts: { demographics: Demographics; answers: Answers; analysisVersion: string }): string {
+export function assessmentHash(parts: { demographics: Demographics; answers: Answers; analysisVersion: string; place: string | null }): string {
   const sorted = (o: object) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
   return createHash("sha256")
-    .update(JSON.stringify([ASSESS_VERSION, parts.analysisVersion, sorted(parts.demographics), sorted(parts.answers)]))
+    .update(JSON.stringify([ASSESS_VERSION, parts.analysisVersion, parts.place, sorted(parts.demographics), sorted(parts.answers)]))
     .digest("hex")
     .slice(0, 32);
 }

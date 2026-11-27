@@ -226,12 +226,14 @@ export default async function ProfilePage() {
       <Card className="divide-y divide-line text-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
           <div>
-            <p className="font-medium">ZIP code</p>
+            <p className="font-medium">Active ZIP code</p>
             <p className="text-muted tabular-nums">{profile?.zip ?? "Not set"}</p>
           </div>
-          <Link className="font-medium text-accent hover:underline" href="/onboarding?step=1">
-            Change
-          </Link>
+          {profile?.onboarded_at ? (
+            <p className="text-muted">Use the ZIP menu above to add or switch locations.</p>
+          ) : (
+            <Link className="font-medium text-accent hover:underline" href="/onboarding?step=1">Set ZIP code</Link>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 py-3">
           <div>

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Compass, Newspaper, User, Users } from "lucide-react";
@@ -13,7 +14,7 @@ const NAV_ITEMS = [
   { href: "/profile", label: "Profile", mobileLabel: "Profile", Icon: User, match: (p: string) => p === "/profile" },
 ] as const;
 
-export function AppNav({ signedIn }: { signedIn: boolean }) {
+export function AppNav({ signedIn, children }: { signedIn: boolean; children?: ReactNode }) {
   const pathname = usePathname() || "/";
 
   return (
@@ -69,6 +70,7 @@ export function AppNav({ signedIn }: { signedIn: boolean }) {
               </Link>
             </nav>
           )}
+          {children}
         </div>
       </header>
 

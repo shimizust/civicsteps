@@ -222,8 +222,10 @@ describe("assessment", () => {
     expect(newFacts.map((f) => f.key)).toEqual(["parks_at_bart"]);
   });
 
-  it("hash changes with answers but not with key order", () => {
-    const h = (answers: Record<string, string | null>) => assessmentHash({ demographics: { housing: "rent" }, answers, analysisVersion: "v3" });
+  it("keys assessments by answers and place regardless of answer order", () => {
+    const h = (answers: Record<string, string | null>, place = "Denver, CO") =>
+      assessmentHash({ demographics: { housing: "rent" }, answers, analysisVersion: "v3", place });
+    expect(h({}, "Denver, CO")).not.toBe(h({}, "Seattle, WA"));
     expect(h({ a: "yes", b: "no" })).toBe(h({ b: "no", a: "yes" }));
     expect(h({ a: "yes" })).not.toBe(h({ a: "no" }));
   });
