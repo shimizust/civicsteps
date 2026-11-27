@@ -55,7 +55,16 @@ describe("Legistar", () => {
     const o = councilMemberFromRecord(records[0] as never, seattle);
     expect(o.id).toBe("legistar:seattle:664");
     expect(o.office).toBe("Seattle City Councilmember");
+    expect(o.photo_url).toContain("council_struass_circle.jpg");
     expect((o.contacts as { emails: string[] }).emails).toEqual(["Dan.Strauss@seattle.gov"]);
+  });
+
+  it("uses only the configured city and person ID for council portraits", () => {
+    const sunnyvale = LOCAL_SOURCES.find((src) => src.client === "sunnyvaleca")!;
+    const record = { ...records[0], OfficeRecordPersonId: 897, OfficeRecordFullName: "Charlsie Chang" };
+    expect(councilMemberFromRecord(record, sunnyvale).photo_url).toContain("Charlsie_Chang_2024");
+    expect(councilMemberFromRecord(record, seattle).photo_url).toBeNull();
+    expect(councilMemberFromRecord({ ...record, OfficeRecordPersonId: 9999 }, sunnyvale).photo_url).toBeNull();
   });
 });
 
