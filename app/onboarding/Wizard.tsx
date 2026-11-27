@@ -1,7 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Check, ChevronDown, Mail, MapPin, Plus, Sparkles } from "lucide-react";
+import { Bell, Check, ChevronDown, Loader2, Mail, MapPin, Plus, Sparkles } from "lucide-react";
+import { formatList } from "@/lib/coverageStatus";
 import { DEMOGRAPHIC_QUESTIONS as QUESTIONS, TOPICS, topicName, type Demographics } from "@/lib/taxonomy";
 import { BackLink } from "@/components/BackLink";
 import { TopicTile } from "@/components/TopicTile";
@@ -285,8 +286,18 @@ function ZipStep({
             {result.stateLookup === "failed" && " We couldn't look up your state legislators right now; we'll retry later."}
           </p>
           {result.coverage && result.coverage.length > 0 && (
-            <p className="mt-2 text-sm text-muted">
-              We&apos;re preparing to index recent {listJoin(result.coverage)}. You can follow progress in your civic feed.
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-accent" aria-hidden />
+              <span>
+                Indexing started for recent {formatList(result.coverage)}. You can follow progress in your civic feed.
+              </span>
+            </p>
+          )}
+          {!result.citySupport.supported && (
+            <p className="mt-2 text-xs text-muted">
+              {result.citySupport.place
+                ? `City council agendas aren't connected for ${result.citySupport.place} yet (currently ${formatList(result.citySupport.supportedCities)}). State bills and federal items will still populate.`
+                : "This ZIP code isn't inside a covered city boundary, so state bills and federal items will populate."}
             </p>
           )}
           <p className="mt-2 text-xs text-muted">
@@ -310,8 +321,6 @@ function ZipStep({
     </form>
   );
 }
-
-const listJoin = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 // ---------------------------------------------------------------- 2. about you
 

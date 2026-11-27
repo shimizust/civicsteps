@@ -8,6 +8,7 @@ import { personalImpact, type ImpactInput, type PersonalImpact } from "@/lib/imp
 import { badgeProgress, levelForPoints, weeklyStreak, VOICE_ACTIONS, type ActionRecord, type ActionType, type ItemType, type Level } from "@/lib/gamification";
 import { favoriteUpdate, sortFavorites, type FavoriteRecord, type FavoriteUpdate } from "@/lib/favorites";
 import { nearest, type Point } from "@/lib/locations";
+import type { Area } from "@/lib/coverageStatus";
 
 /** The nearest site an item names, for the "1.2 mi from you" chip. */
 export type Place = { address: string; miles: number; count: number };
@@ -22,9 +23,9 @@ export async function getProfile(db: DB, userId: string) {
 type CoverageRow = Pick<Database["public"]["Tables"]["ingest_coverage"]["Row"],
   "backfilled_at" | "progress" | "progress_at" | "items_found" | "items_analyzed" | "items_failed">;
 
-export type AreaProgress = CoverageRow & { scope: string; label: string };
+export type AreaProgress = CoverageRow & Area;
 
-export async function getAreaProgress(db: DB, areas: { scope: string; label: string }[]): Promise<AreaProgress[] | null> {
+export async function getAreaProgress(db: DB, areas: Area[]): Promise<AreaProgress[] | null> {
   if (!areas.length) return [];
   const { data, error } = await db.from("ingest_coverage")
     .select("scope, backfilled_at, progress, progress_at, items_found, items_analyzed, items_failed")

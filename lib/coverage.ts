@@ -7,19 +7,9 @@ import "server-only";
  * .github/workflows/backfill.yml to fetch and analyze that area's recent items right away.
  */
 import { createAdminClient } from "@/lib/supabase/admin";
-import { citySourceScope, LOCAL_SOURCES, stateScope } from "@/ingest/legistar.config";
+import { areasFor, citySupportFor, type Area, type CitySupport } from "@/lib/coverageStatus";
 
-export type Area = { scope: string; label: string };
-
-/** The coverage scopes behind a user's feed: their state and their city's council. */
-export function areasFor(state: string | null | undefined, jurisdictionIds: string[]): Area[] {
-  const areas: Area[] = [];
-  if (state) areas.push({ scope: stateScope(state), label: `${state} bills` });
-  for (const src of LOCAL_SOURCES) {
-    if (jurisdictionIds.includes(src.jurisdictionId)) areas.push({ scope: citySourceScope(src), label: `${src.name} council items` });
-  }
-  return areas;
-}
+export { areasFor, citySupportFor, type Area, type CitySupport };
 
 export async function requestAreaCoverage(areas: Area[]): Promise<string[]> {
   if (!areas.length) return [];
@@ -37,12 +27,23 @@ export async function requestAreaCoverage(areas: Area[]): Promise<string[]> {
   const { data: claimed, error: claimError } = await admin.rpc("claim_area_backfill", { p_scopes: missing.map((a) => a.scope) });
   if (claimError) throw claimError;
   const canDispatch = process.env.INGEST_DISPATCH_TOKEN && process.env.INGEST_DISPATCH_REPO;
-  if (canDispatch && claimed) await dispatchBackfill();
+  if (canDispatch && claimed) {
+    const dispatched = await dispatchBackfill();
+    if (!dispatched) {
+      // Leave already-backfilled rows in 'analyzing' so nightly analyzeBackfills() still completes them.
+      const { error: retryErr } = await admin
+        .from("ingest_coverage")
+        .update({ progress: "retry", progress_at: new Date().toISOString(), last_error: "Backfill dispatch failed" })
+        .in("scope", missing.map((a) => a.scope))
+        .is("backfilled_at", null);
+      if (retryErr) console.error("backfill retry status update failed", retryErr);
+    }
+  }
   return pending;
 }
 
 /** Starts the backfill workflow. Needs a GitHub token with Actions: write on the repo. */
-async function dispatchBackfill() {
+async function dispatchBackfill(): Promise<boolean> {
   const repo = process.env.INGEST_DISPATCH_REPO!;
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/backfill.yml/dispatches`, {
@@ -55,8 +56,13 @@ async function dispatchBackfill() {
       body: JSON.stringify({ ref: process.env.INGEST_DISPATCH_REF || "main" }),
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) console.error("backfill dispatch failed", res.status, await res.text().catch(() => ""));
+    if (!res.ok) {
+      console.error("backfill dispatch failed", res.status, await res.text().catch(() => ""));
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error("backfill dispatch failed", err);
+    return false;
   }
 }
