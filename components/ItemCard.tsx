@@ -141,7 +141,7 @@ export function ItemCard({
                   onVote={(v) => onVote?.(item.id, v)}
                 />
               )}
-              {hero && open && (
+              {(hero || item.type === "comment_period") && open && (
                 <Link
                   href={`/draft/${item.id}${item.type === "comment_period" ? "?kind=public_comment" : ""}`}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent dark:text-paper"
