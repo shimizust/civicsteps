@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { getMyOfficials, getProfile } from "@/lib/data";
 import { aiConfigured } from "@/lib/ai/client";
-import { contactsOf } from "@/lib/civic/officials";
+import { contactsOf, phoneNumbersOf } from "@/lib/civic/officials";
 import { placeName } from "@/lib/place";
 import { BackLink } from "@/components/BackLink";
 import { Kicker, LEVEL_LABEL, PageTitle } from "@/components/ui";
@@ -86,13 +86,15 @@ export default async function DraftPage({
             }}
             officials={relevant.map((o) => {
               const c = contactsOf(o);
+              const phones = phoneNumbersOf(c);
               return {
                 id: o.id,
                 name: o.name,
                 office: o.office,
                 email: c.emails?.[0] ?? null,
                 form: c.contact_form_url ?? null,
-                phone: c.phones?.[0] ?? c.offices?.find((office) => office.phone)?.phone ?? null,
+                phone: phones[0]?.phone ?? null,
+                phones: phones.map((p) => ({ label: p.label, phone: p.phone })),
               };
             })}
             initialOfficialId={official?.id ?? null}

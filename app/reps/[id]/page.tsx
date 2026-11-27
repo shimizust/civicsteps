@@ -32,10 +32,20 @@ export default async function RepPage({ params }: { params: Promise<{ id: string
       {c.offices && c.offices.length > 0 && (
         <>
           <SectionTitle>Offices</SectionTitle>
+          {c.offices.length > 1 && (
+            <p className="mb-3 text-sm text-muted">
+              Start with the {o.level === "federal" ? "Washington, DC" : "Capitol"} office. If the line is busy or voicemail is full, call any local office—staff log constituent calls at every location.
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             {c.offices.map((off, i) => (
               <Card key={i} className="text-sm">
-                <p className="font-medium">{off.name}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium">{off.name}</p>
+                  {i === 0 && c.offices!.length > 1 && /washington|d\.?c\.?|capitol/i.test(off.name) && (
+                    <Pill tone="accent">Call first</Pill>
+                  )}
+                </div>
                 {off.address && <p className="mt-1 text-muted">{off.address}</p>}
                 {off.phone && (
                   <a

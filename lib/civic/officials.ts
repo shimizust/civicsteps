@@ -17,6 +17,7 @@ export type Contacts = {
 
 const OCD = "ocd-division/country:us";
 const LEGISLATORS_URL = "https://unitedstates.github.io/congress-legislators/legislators-current.json";
+const DISTRICT_OFFICES_URL = "https://unitedstates.github.io/congress-legislators/legislators-district-offices.json";
 
 // ---------------------------------------------------------------- federal
 
@@ -35,15 +36,48 @@ type Legislator = {
   }[];
 };
 
-export function federalOfficialFromLegislator(p: Legislator): OfficialRow {
+export type DistrictOffice = {
+  id?: string;
+  address?: string;
+  suite?: string;
+  building?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  phone?: string;
+};
+
+type DistrictOfficesEntry = {
+  id: { bioguide: string };
+  offices?: DistrictOffice[];
+};
+
+function formatDistrictAddress(o: DistrictOffice): string | undefined {
+  const street = [o.building, o.address, o.suite].filter(Boolean).join(", ");
+  const cityState = [o.city, o.state].filter(Boolean).join(", ");
+  const tail = [cityState, o.zip].filter(Boolean).join(" ");
+  return [street, tail].filter(Boolean).join(", ") || undefined;
+}
+
+export function federalOfficialFromLegislator(p: Legislator, districtOffices: DistrictOffice[] = []): OfficialRow {
   const t = p.terms[p.terms.length - 1];
   const st = t.state.toLowerCase();
   const isSen = t.type === "sen";
+  const dcOffice = t.address || t.phone ? [{ name: "Washington, DC office", address: t.address, phone: t.phone }] : [];
+  const localOffices = districtOffices
+    .filter((o) => o.phone || o.address || o.city)
+    .map((o) => ({
+      name: o.city ? `${o.city} office` : "District office",
+      address: formatDistrictAddress(o),
+      phone: o.phone,
+    }));
+  const offices = [...dcOffice, ...localOffices];
+  const phones = [...new Set([t.phone, ...localOffices.map((o) => o.phone)].filter((x): x is string => !!x))];
   const contacts: Contacts = {
-    phones: t.phone ? [t.phone] : [],
+    phones,
     website: t.url,
     contact_form_url: t.contact_form ?? t.url,
-    offices: t.address ? [{ name: "Washington, DC office", address: t.address, phone: t.phone }] : [],
+    offices,
   };
   return {
     id: `bioguide:${p.id.bioguide}`,
@@ -61,10 +95,20 @@ export function federalOfficialFromLegislator(p: Legislator): OfficialRow {
 }
 
 export async function fetchFederalOfficials(): Promise<OfficialRow[]> {
-  const res = await fetch(LEGISLATORS_URL);
+  const [res, distRes] = await Promise.all([
+    fetch(LEGISLATORS_URL),
+    fetch(DISTRICT_OFFICES_URL).catch(() => null),
+  ]);
   if (!res.ok) throw new Error(`congress-legislators ${res.status}`);
   const people = (await res.json()) as Legislator[];
-  return people.map(federalOfficialFromLegislator);
+  const byBioguide = new Map<string, DistrictOffice[]>();
+  if (distRes?.ok) {
+    const entries = (await distRes.json()) as DistrictOfficesEntry[];
+    for (const e of entries) {
+      if (e.id?.bioguide && e.offices?.length) byBioguide.set(e.id.bioguide, e.offices);
+    }
+  }
+  return people.map((p) => federalOfficialFromLegislator(p, byBioguide.get(p.id.bioguide)));
 }
 
 /** OCD ids of the federal seats that represent a user, given their jurisdiction ids. */
@@ -98,11 +142,19 @@ export function stateOfficialFromOpenStates(p: OSPerson, state: string): Officia
       : chamber === "upper"
         ? "State Senator"
         : "State Representative";
-  const offices = (p.offices ?? []).map((o) => ({
-    name: o.name ?? (o.classification === "capitol" ? "Capitol office" : "District office"),
-    address: o.address,
-    phone: o.voice,
-  }));
+  const offices = (p.offices ?? []).map((o) => {
+    const rawName = o.name?.trim();
+    const isGenericDistrict = !rawName || /^district office$/i.test(rawName);
+    const cityMatch = isGenericDistrict ? o.address?.match(/,\s*([A-Za-z .'-]+),\s*[A-Z]{2}\b/) : null;
+    const name = cityMatch
+      ? `${cityMatch[1].trim()} district office`
+      : rawName || (o.classification === "capitol" ? "Capitol office" : "District office");
+    return {
+      name,
+      address: o.address,
+      phone: o.voice,
+    };
+  });
   return {
     id: p.id,
     name: p.name,
@@ -136,4 +188,52 @@ export async function fetchStateOfficials(lat: number, lng: number, state: strin
   return json.results.map((p) => stateOfficialFromOpenStates(p, state)).filter((x): x is OfficialRow => !!x);
 }
 
-export const contactsOf = (o: { contacts: unknown }) => (o.contacts ?? {}) as Contacts;
+export const contactsOf = (o: { contacts?: unknown }) => (o.contacts ?? {}) as Contacts;
+
+export type PhoneEntry = {
+  label: string;
+  phone: string;
+  address?: string;
+  isPrimary: boolean;
+};
+
+/**
+ * Deduplicated phone numbers for an official, ordered with the Capitol / Washington, DC office first
+ * and local / district offices after.
+ */
+export function phoneNumbersOf(c: Contacts): PhoneEntry[] {
+  const seen = new Set<string>();
+  const raw: { label: string; phone: string; address?: string }[] = [];
+
+  for (const off of c.offices ?? []) {
+    if (!off.phone) continue;
+    const key = off.phone.replace(/\D/g, "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    let label = off.name?.trim() || "Office";
+    if (/^district office$/i.test(label) && off.address) {
+      const city = off.address.match(/,\s*([A-Za-z .'-]+),\s*[A-Z]{2}\b/)?.[1]?.trim();
+      if (city) label = `${city} district office`;
+    }
+    raw.push({ label, phone: off.phone, address: off.address });
+  }
+
+  for (const ph of c.phones ?? []) {
+    const key = ph.replace(/\D/g, "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    raw.push({
+      label: raw.length === 0 ? (/^1?202/.test(key) ? "Washington, DC office" : "Main office") : "Local office",
+      phone: ph,
+    });
+  }
+
+  const isCapitol = (label: string) => /washington|d\.?c\.?|capitol/i.test(label);
+  const primaryIdx = raw.findIndex((x) => isCapitol(x.label));
+  if (primaryIdx > 0) {
+    const [primary] = raw.splice(primaryIdx, 1);
+    raw.unshift(primary);
+  }
+
+  return raw.map((x, i) => ({ ...x, isPrimary: i === 0 }));
+}

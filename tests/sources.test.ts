@@ -8,7 +8,7 @@ import { councilMemberFromRecord, normalizeMatter } from "@/ingest/legistar";
 import { congressBillUrl, currentCongress, isActiveBill, normalizeCongressBill } from "@/ingest/congress";
 import { contentHash, interleaveBuckets } from "@/ingest/normalize";
 import { enactedDate, isFeedWorthy, normalizeOpenStatesBill } from "@/ingest/openstates";
-import { federalOfficialFromLegislator } from "@/lib/civic/officials";
+import { contactsOf, federalOfficialFromLegislator, phoneNumbersOf } from "@/lib/civic/officials";
 import { LOCAL_SOURCES } from "@/ingest/legistar.config";
 
 const seattle = LOCAL_SOURCES[0];
@@ -131,13 +131,62 @@ describe("contentHash", () => {
 });
 
 describe("congress-legislators", () => {
-  it("maps senators to the state and reps to their district", () => {
-    const sen = federalOfficialFromLegislator({
-      id: { bioguide: "C000127" },
-      name: { first: "Maria", last: "Cantwell", official_full: "Maria Cantwell" },
-      terms: [{ type: "sen", state: "WA", party: "Democrat", phone: "202-224-3441", contact_form: "https://example.gov/contact" }],
-    });
+  it("maps senators to the state and reps to their district, including local district offices", () => {
+    const sen = federalOfficialFromLegislator(
+      {
+        id: { bioguide: "C000127" },
+        name: { first: "Maria", last: "Cantwell", official_full: "Maria Cantwell" },
+        terms: [
+          {
+            type: "sen",
+            state: "WA",
+            party: "Democrat",
+            phone: "202-224-3441",
+            address: "511 Hart Senate Office Building Washington DC 20510",
+            contact_form: "https://example.gov/contact",
+          },
+        ],
+      },
+      [
+        {
+          city: "Seattle",
+          state: "WA",
+          address: "915 Second Ave.",
+          suite: "Suite 3206",
+          zip: "98174",
+          phone: "206-220-6400",
+        },
+        {
+          city: "Spokane",
+          state: "WA",
+          address: "920 W. Riverside Ave.",
+          phone: "509-353-2507",
+        },
+      ],
+    );
     expect(sen.jurisdiction_id).toBe("ocd-division/country:us/state:wa");
+    const phones = phoneNumbersOf(contactsOf(sen));
+    expect(phones).toEqual([
+      {
+        label: "Washington, DC office",
+        phone: "202-224-3441",
+        address: "511 Hart Senate Office Building Washington DC 20510",
+        isPrimary: true,
+      },
+      {
+        label: "Seattle office",
+        phone: "206-220-6400",
+        address: "915 Second Ave., Suite 3206, Seattle, WA 98174",
+        isPrimary: false,
+      },
+      {
+        label: "Spokane office",
+        phone: "509-353-2507",
+        address: "920 W. Riverside Ave., Spokane, WA",
+        isPrimary: false,
+      },
+    ]);
+
     const rep = federalOfficialFromLegislator({
       id: { bioguide: "N000191" },
       name: { first: "Joe", last: "Neguse" },

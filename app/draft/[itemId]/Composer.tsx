@@ -9,7 +9,15 @@ type Props = {
   aiEnabled: boolean;
   isComment: boolean;
   item: DraftInput["item"] & { id: string; action_url: string | null };
-  officials: { id: string; name: string; office: string; email: string | null; form: string | null; phone: string | null }[];
+  officials: {
+    id: string;
+    name: string;
+    office: string;
+    email: string | null;
+    form: string | null;
+    phone: string | null;
+    phones?: { label: string; phone: string }[];
+  }[];
   initialOfficialId: string | null;
   initialKind: DraftKind;
   place: string | null;
@@ -328,6 +336,11 @@ export function Composer(p: Props) {
               <a className={primaryLinkBtn} href={`tel:${official.phone.replace(/[^\d+]/g, "")}`}>
                 <Phone className="h-4 w-4" aria-hidden />
                 Call {official.phone}
+                {(official.phones?.length ?? 0) > 1 && (
+                  <span className="text-xs opacity-90">
+                    ({/washington.*d\.?c/i.test(official.phones![0].label) ? "DC office" : official.phones![0].label})
+                  </span>
+                )}
               </a>
             )}
             {kind === "public_comment" && p.item.action_url && (
@@ -350,6 +363,28 @@ export function Composer(p: Props) {
               )}
             </Button>
           </div>
+
+          {kind === "call_script" && (official?.phones?.length ?? 0) > 1 && (
+            <div className="rounded-lg border border-line bg-paper p-3 text-xs">
+              <p className="text-muted">
+                Start with the {/washington.*d\.?c/i.test(official!.phones![0].label) ? "DC" : "Capitol"} office above. If the line is busy or voicemail is full, try a local office—staff log constituent calls at every location:
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+                {official!.phones!.slice(1).map((lp, i) => (
+                  <li key={`${lp.phone}-${i}`} className="inline-flex items-baseline gap-1.5">
+                    <span className="font-medium text-ink">{lp.label}:</span>
+                    <a
+                      className="inline-flex items-center gap-1 rounded text-accent tabular-nums hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      href={`tel:${lp.phone.replace(/[^\d+]/g, "")}`}
+                    >
+                      <Phone className="h-3 w-3" aria-hidden />
+                      {lp.phone}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="border-t border-line pt-3.5">
             <Button
