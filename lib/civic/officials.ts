@@ -111,12 +111,6 @@ export async function fetchFederalOfficials(): Promise<OfficialRow[]> {
   return people.map((p) => federalOfficialFromLegislator(p, byBioguide.get(p.id.bioguide)));
 }
 
-/** OCD ids of the federal seats that represent a user, given their jurisdiction ids. */
-export function federalSeatIds(state: string, cd: number | null): string[] {
-  const base = `${OCD}/state:${state.toLowerCase()}`;
-  return cd === null ? [base] : [base, `${base}/cd:${cd}`];
-}
-
 // ---------------------------------------------------------------- state (Open States)
 
 type OSPerson = {
@@ -182,7 +176,7 @@ export async function fetchStateOfficials(lat: number, lng: number, state: strin
   url.search = new URLSearchParams({ lat: String(lat), lng: String(lng) }).toString();
   url.searchParams.append("include", "offices");
   url.searchParams.append("include", "links");
-  const res = await fetch(url, { headers: { "X-API-KEY": key }, cache: "no-store" });
+  const res = await fetch(url, { headers: { "X-API-KEY": key }, cache: "no-store", signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`Open States people.geo ${res.status}`);
   const json = (await res.json()) as { results: OSPerson[] };
   return json.results.map((p) => stateOfficialFromOpenStates(p, state)).filter((x): x is OfficialRow => !!x);

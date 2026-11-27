@@ -6,15 +6,14 @@ import { DEMOGRAPHIC_QUESTIONS as QUESTIONS, TOPICS, topicName, type Demographic
 import { BackLink } from "@/components/BackLink";
 import { TopicTile } from "@/components/TopicTile";
 import { Button, Card, Input, Kicker, Pill, cx } from "@/components/ui";
+import { saveZip, type ZipResult } from "@/app/zip-actions";
 import {
   addPetIssue,
   finishOnboarding,
   removeInterest,
-  saveZip,
   saveDemographics,
   saveTopics,
   updatePetKeywords,
-  type ZipResult,
   type PetIssue,
 } from "./actions";
 

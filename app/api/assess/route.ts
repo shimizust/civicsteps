@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
   const impacts = (a?.impacts ?? []) as unknown as ImpactInput[];
   const demographics = (profile?.demographics ?? {}) as Demographics;
 
-  const hash = assessmentHash({ demographics, answers, analysisVersion: `${a?.prompt_version ?? "none"}:${a?.created_at ?? ""}` });
+  const place = placeName(profile?.jurisdiction_ids ?? [], profile?.state ?? null);
+  const hash = assessmentHash({ demographics, answers, analysisVersion: `${a?.prompt_version ?? "none"}:${a?.created_at ?? ""}`, place });
   const { data: cached } = await supabase
     .from("personal_assessments")
     .select("result")
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
         why_it_matters: a?.why_it_matters ?? null,
         description: item.description,
       },
-      place: placeName(profile?.jurisdiction_ids ?? [], profile?.state ?? null),
+      place,
       impacts,
       demographics,
       answers,
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
   await admin.from("personal_assessments").upsert({
     user_id: user.id,
     item_id: itemId,
+    place,
     facts_hash: hash,
     result: assessment,
     model: run.model,

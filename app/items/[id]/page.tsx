@@ -21,6 +21,7 @@ import { RelevanceVote } from "@/components/RelevanceVote";
 import { IssueSummary } from "@/components/IssueSummary";
 import { ItemMap } from "@/components/ItemMap";
 import { formatMiles, milesBetween } from "@/lib/locations";
+import { placeName } from "@/lib/place";
 import { Card, Kicker, LEVEL_LABEL, LinkButton, Pill, deadlineLabel } from "@/components/ui";
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,26 +29,30 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const { supabase, user } = await requireUser();
   if (!user) redirect(`/login?next=/items/${id}`);
 
-  const [item, mine, ctx, myActions, lastAssessment, myVote] = await Promise.all([
+  const [item, mine, ctx, myActions, myVote] = await Promise.all([
     getItem(supabase, id),
     getMyOfficials(supabase, user.id),
     getUserContext(supabase, user.id),
     supabase.from("user_actions").select("type").eq("user_id", user.id).eq("item_id", id),
-    supabase
-      .from("personal_assessments")
-      .select("result, facts_hash")
-      .eq("user_id", user.id)
-      .eq("item_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     supabase.from("item_feedback").select("relevant").eq("user_id", user.id).eq("item_id", id).maybeSingle(),
   ]);
   if (!item) notFound();
   const a = item.item_analysis;
   const analysis = a as unknown as FeedAnalysis | null;
   const matches = analysis ? matchInterests({ item, analysis }, ctx.interests) : [];
-  const registry = await getRegistry(supabase, factKeysOf(analysis?.impacts));
+  const place = placeName(ctx.profile?.jurisdiction_ids ?? [], ctx.profile?.state ?? null);
+  const assessments = supabase
+    .from("personal_assessments")
+    .select("result, facts_hash")
+    .eq("user_id", user.id)
+    .eq("item_id", id);
+  const [registry, lastAssessment] = await Promise.all([
+    getRegistry(supabase, factKeysOf(analysis?.impacts)),
+    (place ? assessments.eq("place", place) : assessments.is("place", null))
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
   const impact = personalImpact(analysis?.impacts, {
     groups: ctx.groups,
     matched: matches.map((m) => m.interest),
@@ -59,6 +64,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     demographics: ctx.demographics,
     answers: ctx.answers,
     analysisVersion: `${a?.prompt_version ?? "none"}:${a?.created_at ?? ""}`,
+    place,
   });
   const saved = (lastAssessment.data?.result ?? null) as Assessment | null;
   const assessment = saved && { ...saved, follow_ups: saved.follow_ups.filter((f) => !(f.key in ctx.answers)) };

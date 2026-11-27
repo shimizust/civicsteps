@@ -105,7 +105,7 @@ export async function geocodeZip(zip: string): Promise<Districts | null> {
     layers: "all",
     format: "json",
   }).toString();
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`Census geocoder ${res.status}`);
   return parseCensusResponse(await res.json(), { zip, ...pt });
 }

@@ -2,9 +2,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/supabase/server";
-import { geocodeZip } from "@/lib/civic/geocode";
-import { resolveOfficials } from "@/lib/civic/resolve";
-import { areasFor, requestAreaCoverage } from "@/lib/coverage";
 import { mapInterest } from "@/lib/ai/mapInterest";
 import { cleanDemographics, TOPIC_SLUGS, type Demographics } from "@/lib/taxonomy";
 
@@ -12,57 +9,6 @@ async function me() {
   const { supabase, user } = await requireUser();
   if (!user) redirect("/login?next=/onboarding");
   return { supabase, user };
-}
-
-export type ZipResult =
-  | {
-      ok: true;
-      zip: string;
-      summary: string[];
-      officials: number;
-      stateLookup: "ok" | "skipped" | "failed";
-      coverage: string[] | null;
-    }
-  | { ok: false; error: string };
-
-export async function saveZip(input: string): Promise<ZipResult> {
-  const { supabase, user } = await me();
-  const zip = input.trim().match(/^(\d{5})(?:-\d{4})?$/)?.[1];
-  if (!zip) return { ok: false, error: "Enter a 5-digit ZIP code." };
-
-  let d;
-  try {
-    d = await geocodeZip(zip);
-  } catch {
-    return { ok: false, error: "The district lookup service isn't responding. Try again in a minute." };
-  }
-  if (!d) return { ok: false, error: "We don't have districts for that ZIP. If it's a PO box ZIP, try the ZIP where you live." };
-
-  const { error } = await supabase.from("profiles").upsert(
-    { user_id: user.id, zip: d.zip, lat: d.lat, lng: d.lng, state: d.state, jurisdiction_ids: d.jurisdictionIds },
-    { onConflict: "user_id" },
-  );
-  if (error) return { ok: false, error: "Couldn't save your ZIP code." };
-
-  // New state or city? Start pulling in its items now rather than leaving the feed empty until tonight's run.
-  const [{ count, stateLookup }, coverage] = await Promise.all([
-    resolveOfficials(user.id, d),
-    requestAreaCoverage(areasFor(d.state, d.jurisdictionIds)).catch((err) => {
-      console.error("coverage request failed", err);
-      return null;
-    }),
-  ]);
-  const summary = [
-    d.place && `City of ${d.place}`,
-    d.county,
-    d.cd !== null && (d.cd === 0 ? `${d.state} at-large congressional district` : `${d.state} congressional district ${d.cd}`),
-    d.sldu && `State senate district ${d.sldu}`,
-    d.sldl && `State house district ${d.sldl}`,
-  ].filter((x): x is string => !!x);
-  revalidatePath("/reps");
-  revalidatePath("/feed");
-  revalidatePath("/profile");
-  return { ok: true, zip: d.zip, summary, officials: count, stateLookup, coverage };
 }
 
 export async function saveDemographics(d: Demographics) {

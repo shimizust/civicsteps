@@ -287,14 +287,14 @@ isOneToOne: false
                   ]
                 },"personal_assessments": {
                   Row: {
-                    "created_at": string,"facts_hash": string,"item_id": string,"model": string,"result": NonNullable<Json>,"user_id": string
+                    "created_at": string,"facts_hash": string,"item_id": string,"model": string,"place": string | null,"result": NonNullable<Json>,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"facts_hash": string,"item_id": string,"model": string,"result": NonNullable<Json>,"user_id": string
+                    "created_at"?: string,"facts_hash": string,"item_id": string,"model": string,"place"?: string | null,"result": NonNullable<Json>,"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"facts_hash"?: string,"item_id"?: string,"model"?: string,"result"?: NonNullable<Json>,"user_id"?: string
+                    "created_at"?: string,"facts_hash"?: string,"item_id"?: string,"model"?: string,"place"?: string | null,"result"?: NonNullable<Json>,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -339,6 +339,18 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"saved_zips": {
+                  Row: {
+                    "jurisdiction_ids": (string)[],"lat": number | null,"lng": number | null,"state": string | null,"state_official_ids": (string)[],"user_id": string,"zip": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "jurisdiction_ids": (string)[],"lat"?: number | null,"lng"?: number | null,"state"?: string | null,"state_official_ids"?: (string)[],"user_id": string,"zip": string
+                  }
+                  Update: {
+                    "jurisdiction_ids"?: (string)[],"lat"?: number | null,"lng"?: number | null,"state"?: string | null,"state_official_ids"?: (string)[],"user_id"?: string,"zip"?: string
+                  }
+                  Relationships: []
                 },"topics": {
                   Row: {
                     "name": string,"parent_slug": string | null,"slug": string
@@ -465,7 +477,10 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "browse_items":
+            "activate_zip":
+{ Args: { "p_jurisdiction_ids": (string)[],"p_lat": number,"p_lng": number,"p_state": string,"p_state_official_ids"?: (string)[],"p_user": string,"p_zip": string }; Returns: number
+                           },
+"browse_items":
 { Args: { "p_level"?: string,"p_limit"?: number,"p_offset"?: number,"p_query"?: string,"p_scope"?: string }; Returns: {
               "active": boolean,"analysis": Json,"in_area": boolean,"item": Json,"my_official_ids": (string)[],"relevant": boolean,"total_count": number
             }[]
@@ -486,6 +501,12 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "in_area": number,"in_area_active": number,"indexed": number
             }[]
+                           },
+"states_to_ingest":
+{ Args: Record<PropertyKey, never>; Returns: string[]
+                           },
+"sync_council_links":
+{ Args: { "p_jurisdiction": string,"p_official_ids": (string)[] }; Returns: number
                            }
           }
           Enums: {
