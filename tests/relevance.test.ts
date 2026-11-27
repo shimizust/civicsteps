@@ -187,21 +187,41 @@ describe("buildFeed", () => {
 
     const feed = buildFeed(items, { ...user, actedItemIds: new Set(["done-0", "done-1", "done-2"]) }, 2);
     expect(feed.actNow).toHaveLength(2);
-    expect(feed.yourReps).toHaveLength(2);
     expect(feed.radar).toHaveLength(2);
     expect(feed.done).toHaveLength(2);
-    expect(feed.totals).toEqual({ actNow: 3, yourReps: 4, radar: 5, done: 3 });
-    expect(feed.shownIds.size).toBe(8);
+    expect(feed.totals).toEqual({ actNow: 3, radar: 9, done: 3 });
+    expect(feed.shownIds.size).toBe(6);
 
     const counts = countByLevel(feed.ranked);
-    expect(feed.totals.actNow + feed.totals.yourReps + feed.totals.radar).toBe(counts.all);
+    expect(feed.totals.actNow + feed.totals.radar).toBe(counts.all);
 
     const fedOnly = sectionRanked(feed.ranked.filter((r) => matchesLevel(r.item, "federal")), 2);
-    expect(fedOnly.totals).toEqual({ actNow: 3, yourReps: 0, radar: 5, done: 3 });
-    expect(fedOnly.totals.actNow + fedOnly.totals.yourReps + fedOnly.totals.radar).toBe(counts.federal);
+    expect(fedOnly.totals).toEqual({ actNow: 3, radar: 5, done: 3 });
+    expect(fedOnly.totals.actNow + fedOnly.totals.radar).toBe(counts.federal);
 
     const where = { inArea: true, active: true, vote: null };
     expect(feedStatus("radar-4", where, feed)).toBe("ranked_lower");
+  });
+
+  it("boosts rep-involved items in radar when they match interests, but excludes minor unrelated rep bills", () => {
+    const unrelatedRepBill = cand(
+      { id: "rep-unrelated", level: "federal" },
+      { topics: ["government/postal"], significance: 2 },
+      ["rep-1"],
+    );
+    expect(scoreCandidate(unrelatedRepBill, user)).toBeNull();
+
+    const matchedRepBill = cand(
+      { id: "rep-matched", level: "federal" },
+      { topics: ["transportation/transit"], significance: 3 },
+      ["rep-1"],
+    );
+    const matchedOtherBill = cand(
+      { id: "other-matched", level: "federal" },
+      { topics: ["transportation/transit"], significance: 3 },
+    );
+    const feed = buildFeed([matchedOtherBill, matchedRepBill], user);
+    expect(feed.radar.map((r) => r.item.id)).toEqual(["rep-matched", "other-matched"]);
   });
 
   it("excludes local items with a deadline but no connection to the user", () => {

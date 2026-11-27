@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ChevronDown, ExternalLink, Mail, PenLine, Phone } from "lucide-react";
+import { ArrowRight, ChevronDown, ExternalLink, Mail, PenLine, Phone } from "lucide-react";
 import type { Database } from "@/lib/supabase/database.types";
+import type { RepActivityItem } from "@/lib/data";
 import { contactsOf, phoneNumbersOf } from "@/lib/civic/officials";
 import { Card, Pill, cx } from "@/components/ui";
 import { OfficialPortrait } from "@/components/OfficialPortrait";
@@ -13,16 +14,20 @@ function shortOfficeLabel(label: string) {
   return label;
 }
 
+const PREVIEW_LIMIT = 5;
+
 export function OfficialCard({
   o,
   role,
   draftHref,
+  activity,
   hero = false,
   compact = false,
 }: {
   o: Official;
   role?: string;
   draftHref?: string;
+  activity?: RepActivityItem[];
   hero?: boolean;
   compact?: boolean;
 }) {
@@ -128,6 +133,56 @@ export function OfficialCard({
                   </li>
                 ))}
               </ul>
+            </div>
+          </details>
+        )}
+
+        {!hero && activity && activity.length > 0 && (
+          <details className="group mt-2.5 text-xs">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden />
+              <span>
+                Involved in {activity.length} {activity.length === 1 ? "bill or item" : "bills & items"}
+              </span>
+            </summary>
+            <div className="mt-2 space-y-2 rounded-lg border border-line bg-paper p-2.5 text-xs">
+              <ul className="divide-y divide-line/60">
+                {activity.slice(0, PREVIEW_LIMIT).map((a) => {
+                  const headline = a.headline || a.title;
+                  return (
+                    <li key={`${a.id}-${a.role}`} className="py-2 first:pt-0 last:pb-0">
+                      <Link
+                        href={`/items/${a.id}`}
+                        className="group/item block rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Pill tone="accent" className="capitalize">
+                            {a.role}
+                            {a.vote ? `: ${a.vote}` : ""}
+                          </Pill>
+                          {a.last_action_at && (
+                            <span className="tabular-nums text-muted">
+                              {new Date(a.last_action_at).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 line-clamp-2 font-medium leading-snug text-ink group-hover/item:text-accent">
+                          {headline}
+                        </p>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="border-t border-line/60 pt-2">
+                <Link
+                  href={`/reps/${encodeURIComponent(o.id)}`}
+                  className="inline-flex items-center gap-1 font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  {activity.length > PREVIEW_LIMIT ? `See all ${activity.length} items` : "Full profile & activity"}
+                  <ArrowRight className="h-3 w-3" aria-hidden />
+                </Link>
+              </div>
             </div>
           </details>
         )}

@@ -33,7 +33,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
     items.map((r) => ({ r, reps: repsFor(r), place: feed.places[r.item.id] as Place | undefined }));
 
   const levelCounts = countByLevel(feed.ranked);
-  const { actNow, yourReps, radar, done, totals } = sectionRanked(
+  const { actNow, radar, done, totals } = sectionRanked(
     feed.ranked.filter((r) => matchesLevel(r.item, level)),
   );
   const picked = levelCounts.all;
@@ -109,26 +109,17 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
             </div>
           )}
 
-          {yourReps.length > 0 && (
-            <>
-              <SectionTitle hint={sectionHint("Bills your representatives are sponsoring or voting on", yourReps.length, totals.yourReps)}>
-                Your reps are involved
-              </SectionTitle>
-              <FeedList entries={toEntries(yourReps)} />
-            </>
-          )}
-
-          <SectionTitle hint={sectionHint(undefined, radar.length, totals.radar)}>On your radar</SectionTitle>
+          <SectionTitle hint={sectionHint("Matched to your issues, most relevant first", radar.length, totals.radar)}>On your radar</SectionTitle>
           {radar.length ? (
             <FeedList entries={toEntries(radar)} />
-          ) : level === "state" && !actNow.length && !yourReps.length ? (
+          ) : level === "state" && !actNow.length ? (
             <Empty>
               No {profile.state ?? "state"} bills match your interests right now. Between legislative sessions, this shows laws signed
               in the last four months.{" "}
               <Link className="text-accent underline" href="/browse?level=state">Browse all state items</Link> or{" "}
               <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
             </Empty>
-          ) : level === "federal" && !actNow.length && !yourReps.length ? (
+          ) : level === "federal" && !actNow.length ? (
             <Empty>
               No federal bills or public comment periods match your interests right now.{" "}
               <Link className="text-accent underline" href="/browse?level=federal">Browse all federal items</Link> or{" "}

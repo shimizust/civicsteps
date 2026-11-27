@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, Phone } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
+import { getOfficialActivity } from "@/lib/data";
 import { contactsOf } from "@/lib/civic/officials";
 import { BackLink } from "@/components/BackLink";
 import { OfficialCard } from "@/components/OfficialCard";
@@ -12,17 +13,13 @@ export default async function RepPage({ params }: { params: Promise<{ id: string
   const { supabase, user } = await requireUser();
   if (!user) redirect("/login?next=/reps");
 
-  const [{ data: o }, { data: activity }] = await Promise.all([
+  const [{ data: o }, activityByOfficial] = await Promise.all([
     supabase.from("officials").select("*").eq("id", id).maybeSingle(),
-    supabase
-      .from("item_officials")
-      .select("role, vote, items!inner(id, title, status, last_action_at, level, item_analysis(headline))")
-      .eq("official_id", id)
-      .order("last_action_at", { referencedTable: "items", ascending: false })
-      .limit(25),
+    getOfficialActivity(supabase, [id], 50),
   ]);
   if (!o) notFound();
   const c = contactsOf(o);
+  const activity = activityByOfficial[id] ?? [];
 
   return (
     <div>
@@ -75,33 +72,35 @@ export default async function RepPage({ params }: { params: Promise<{ id: string
         </p>
       )}
 
-      <SectionTitle hint="Most recent first">Recent activity</SectionTitle>
-      {activity?.length ? (
+      <SectionTitle hint={activity.length ? `${activity.length} ${activity.length === 1 ? "item" : "items"} · most recent first` : "Most recent first"}>
+        Bills &amp; items involved in
+      </SectionTitle>
+      {activity.length ? (
         <ul className="space-y-2.5">
           {activity.map((a) => {
-            const headline = a.items.item_analysis?.headline?.trim() || a.items.title;
-            const showRaw = headline !== a.items.title;
+            const headline = a.headline || a.title;
+            const showRaw = headline !== a.title;
             return (
-              <li key={`${a.items.id}-${a.role}`}>
+              <li key={`${a.id}-${a.role}`}>
                 <Link
-                  href={`/items/${a.items.id}`}
+                  href={`/items/${a.id}`}
                   className="block rounded-xl border border-line bg-card p-3.5 transition hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <Kicker>{LEVEL_LABEL[a.items.level]}</Kicker>
+                    <Kicker>{LEVEL_LABEL[a.level]}</Kicker>
                     <Pill tone="accent" className="capitalize">
                       {a.role}
                       {a.vote ? `: ${a.vote}` : ""}
                     </Pill>
-                    {a.items.last_action_at && (
+                    {a.last_action_at && (
                       <span className="ml-auto text-xs tabular-nums text-muted">
-                        {new Date(a.items.last_action_at).toLocaleDateString()}
+                        {new Date(a.last_action_at).toLocaleDateString()}
                       </span>
                     )}
                   </div>
                   <p className="mt-1.5 font-medium leading-snug">{headline}</p>
-                  {showRaw && <p className="mt-0.5 truncate text-xs text-muted">{a.items.title}</p>}
-                  {a.items.status && <p className="mt-1 text-xs text-muted">{a.items.status}</p>}
+                  {showRaw && <p className="mt-0.5 truncate text-xs text-muted">{a.title}</p>}
+                  {a.status && <p className="mt-1 text-xs text-muted">{a.status}</p>}
                 </Link>
               </li>
             );

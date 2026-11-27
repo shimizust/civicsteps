@@ -78,7 +78,7 @@ async function main() {
       },
       50,
     );
-    const open = [...feed.actNow, ...feed.yourReps, ...feed.radar];
+    const open = [...feed.actNow, ...feed.radar];
 
     if (p.notify_alerts) {
       const fresh = open.filter((r) => r.petMatch && (r.item as unknown as { created_at: string }).created_at > new Date(now.getTime() - 2 * DAY).toISOString());

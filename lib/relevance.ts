@@ -210,10 +210,10 @@ export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
   score += learned;
   if (learned > 0) reasons.push("Similar to items you marked relevant");
 
-  // Locality and urgency alone don't make an item relevant: it must connect to the user somehow,
-  // unless it's a major item in their jurisdiction.
+  // Locality, urgency, and rep sponsorship alone don't make a minor item relevant: it must connect to the
+  // user's issues/profile somehow, unless it's a major item in their jurisdiction.
   const connected =
-    vote === true || learned > 0 || petMatch || topicPoints > 0 || c.my_official_ids.length > 0 || groupHits.length > 0 || viaFact.length > 0;
+    vote === true || learned > 0 || petMatch || topicPoints > 0 || groupHits.length > 0 || viaFact.length > 0;
   if (!connected && analysis.significance < 4) return null;
 
   const acted = u.actedItemIds.has(item.id);
@@ -259,14 +259,12 @@ export function countByLevel(ranked: Pick<Ranked, "item" | "acted">[]): Record<F
 
 export type FeedSections = {
   actNow: Ranked[];
-  yourReps: Ranked[];
   radar: Ranked[];
   done: Ranked[];
 };
 
 export type FeedSectionTotals = {
   actNow: number;
-  yourReps: number;
   radar: number;
   done: number;
 };
@@ -276,22 +274,19 @@ export type SectionedFeed = FeedSections & {
 };
 
 export function sectionRanked(ranked: Ranked[], limitPerSection = FEED_SECTION_LIMIT): SectionedFeed {
-  const feed: FeedSections = { actNow: [], yourReps: [], radar: [], done: [] };
+  const feed: FeedSections = { actNow: [], radar: [], done: [] };
   for (const r of ranked) {
     if (r.acted) feed.done.push(r);
     else if (r.daysLeft !== null && r.daysLeft >= 0 && r.daysLeft <= 14) feed.actNow.push(r);
-    else if (r.my_official_ids.length) feed.yourReps.push(r);
     else feed.radar.push(r);
   }
   feed.actNow.sort((a, b) => (a.daysLeft ?? 99) - (b.daysLeft ?? 99) || b.score - a.score);
   return {
     actNow: feed.actNow.slice(0, limitPerSection),
-    yourReps: feed.yourReps.slice(0, limitPerSection),
     radar: feed.radar.slice(0, limitPerSection),
     done: feed.done.slice(0, limitPerSection),
     totals: {
       actNow: feed.actNow.length,
-      yourReps: feed.yourReps.length,
       radar: feed.radar.length,
       done: feed.done.length,
     },
@@ -330,7 +325,7 @@ export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSecti
     ranked,
     questions,
     rankedIds: shown,
-    shownIds: new Set([sections.actNow, sections.yourReps, sections.radar, sections.done].flatMap((rs) => rs.map((r) => r.item.id))),
+    shownIds: new Set([sections.actNow, sections.radar, sections.done].flatMap((rs) => rs.map((r) => r.item.id))),
   };
 }
 

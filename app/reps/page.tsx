@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/supabase/server";
-import { getMyOfficials, getProfile } from "@/lib/data";
+import { getMyOfficials, getOfficialActivity, getProfile } from "@/lib/data";
 import { placeName } from "@/lib/place";
 import { OfficialCard } from "@/components/OfficialCard";
 import { Empty, PageTitle, SectionTitle } from "@/components/ui";
@@ -16,6 +16,10 @@ export default async function RepsPage() {
   const { supabase, user } = await requireUser();
   if (!user) redirect("/login?next=/reps");
   const [officials, profile] = await Promise.all([getMyOfficials(supabase, user.id), getProfile(supabase, user.id)]);
+  const activityByOfficial = await getOfficialActivity(
+    supabase,
+    officials.map((o) => o.id),
+  );
   const place = profile ? placeName(profile.jurisdiction_ids, profile.state) : null;
 
   return (
@@ -36,7 +40,7 @@ export default async function RepsPage() {
               <ul className="grid gap-3 sm:grid-cols-2">
                 {list.map((o) => (
                   <li key={o.id}>
-                    <OfficialCard o={o} />
+                    <OfficialCard o={o} activity={activityByOfficial[o.id]} />
                   </li>
                 ))}
               </ul>

@@ -267,6 +267,17 @@ export async function browseItems(
   };
 }
 
+export type RepActivityItem = {
+  id: string;
+  title: string;
+  headline: string | null;
+  status: string | null;
+  last_action_at: string | null;
+  level: "city" | "county" | "state" | "federal";
+  role: string;
+  vote: string | null;
+};
+
 export async function getMyOfficials(db: DB, userId: string) {
   const { data } = await db
     .from("user_officials")
@@ -277,6 +288,38 @@ export async function getMyOfficials(db: DB, userId: string) {
     .map((r) => r.officials)
     .filter((o): o is NonNullable<typeof o> => !!o)
     .sort((a, b) => order[a.level] - order[b.level] || a.office.localeCompare(b.office) || a.name.localeCompare(b.name));
+}
+
+export async function getOfficialActivity(db: DB, officialIds: string[], limit = 200): Promise<Record<string, RepActivityItem[]>> {
+  const byOfficial: Record<string, RepActivityItem[]> = {};
+  if (!officialIds.length) return byOfficial;
+  const { data } = await db
+    .from("item_officials")
+    .select("official_id, role, vote, items!inner(id, title, status, last_action_at, level, item_analysis(headline))")
+    .in("official_id", officialIds)
+    .order("last_action_at", { referencedTable: "items", ascending: false })
+    .limit(limit);
+
+  for (const row of data ?? []) {
+    const it = row.items;
+    if (!it) continue;
+    const list = (byOfficial[row.official_id] ??= []);
+    if (list.some((x) => x.id === it.id && x.role === row.role)) continue;
+    list.push({
+      id: it.id,
+      title: it.title,
+      headline: it.item_analysis?.headline?.trim() || null,
+      status: it.status,
+      last_action_at: it.last_action_at,
+      level: it.level,
+      role: row.role,
+      vote: row.vote,
+    });
+  }
+  for (const list of Object.values(byOfficial)) {
+    list.sort((a, b) => (b.last_action_at ?? "").localeCompare(a.last_action_at ?? ""));
+  }
+  return byOfficial;
 }
 
 export async function getItem(db: DB, id: string) {
