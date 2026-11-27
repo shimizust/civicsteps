@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Compass, Newspaper, User, Users } from "lucide-react";
+import { LogoMark } from "@/components/Logo";
 import { cx } from "@/components/ui";
 
 const NAV_ITEMS = [
@@ -28,9 +29,12 @@ export function AppNav({ signedIn }: { signedIn: boolean }) {
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3 text-sm">
           <Link
             href={signedIn ? "/feed" : "/"}
-            className="mr-auto rounded-md font-display text-lg font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="mr-auto inline-flex items-center gap-2 rounded-md font-display text-lg font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            Civic<span className="text-accent">Steps</span>
+            <LogoMark className="h-6 w-6 shrink-0 text-accent" />
+            <span>
+              Civic<span className="text-accent">Steps</span>
+            </span>
           </Link>
 
           {signedIn ? (
