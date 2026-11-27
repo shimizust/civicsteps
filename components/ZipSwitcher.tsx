@@ -39,6 +39,7 @@ export function ZipSwitcher({ active, saved }: { active: string | null; saved: L
             router.replace(params.size ? `/browse?${params}` : "/browse");
           }
         }
+        router.refresh();
         setZip("");
         close();
       } catch {
