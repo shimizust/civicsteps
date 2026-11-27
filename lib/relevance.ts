@@ -234,10 +234,27 @@ function impactFor(c: Candidate, u: UserContext, matches: InterestMatch[]): Pers
 
 export const MIN_SCORE = 8;
 
-export type FeedLevel = "all" | "city" | "state" | "federal";
+export const FEED_LEVELS = ["all", "city", "state", "federal"] as const;
+
+export type FeedLevel = (typeof FEED_LEVELS)[number];
+
+export const FEED_SECTION_LIMIT = 15;
 
 export function matchesLevel(item: Pick<FeedItem, "level">, level: FeedLevel): boolean {
   return level === "all" || item.level === level || (level === "city" && item.level === "county");
+}
+
+/** Count uncapped non-acted matches across the mutually exclusive level tabs. */
+export function countByLevel(ranked: Pick<Ranked, "item" | "acted">[]): Record<FeedLevel, number> {
+  const counts: Record<FeedLevel, number> = { all: 0, city: 0, state: 0, federal: 0 };
+  for (const r of ranked) {
+    if (r.acted) continue;
+    counts.all++;
+    if (matchesLevel(r.item, "city")) counts.city++;
+    else if (r.item.level === "state") counts.state++;
+    else counts.federal++;
+  }
+  return counts;
 }
 
 export type FeedSections = {
@@ -247,7 +264,18 @@ export type FeedSections = {
   done: Ranked[];
 };
 
-export function sectionRanked(ranked: Ranked[], limitPerSection = 15): FeedSections {
+export type FeedSectionTotals = {
+  actNow: number;
+  yourReps: number;
+  radar: number;
+  done: number;
+};
+
+export type SectionedFeed = FeedSections & {
+  totals: FeedSectionTotals;
+};
+
+export function sectionRanked(ranked: Ranked[], limitPerSection = FEED_SECTION_LIMIT): SectionedFeed {
   const feed: FeedSections = { actNow: [], yourReps: [], radar: [], done: [] };
   for (const r of ranked) {
     if (r.acted) feed.done.push(r);
@@ -261,10 +289,16 @@ export function sectionRanked(ranked: Ranked[], limitPerSection = 15): FeedSecti
     yourReps: feed.yourReps.slice(0, limitPerSection),
     radar: feed.radar.slice(0, limitPerSection),
     done: feed.done.slice(0, limitPerSection),
+    totals: {
+      actNow: feed.actNow.length,
+      yourReps: feed.yourReps.length,
+      radar: feed.radar.length,
+      done: feed.done.length,
+    },
   };
 }
 
-export type Feed = FeedSections & {
+export type Feed = SectionedFeed & {
   /** All items that cleared MIN_SCORE (sorted by score), before section slicing, so level tabs don't starve. */
   ranked: Ranked[];
   questions: RankedQuestion[];
@@ -274,7 +308,7 @@ export type Feed = FeedSections & {
   shownIds: Set<string>;
 };
 
-export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSection = 15): Feed {
+export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSection = FEED_SECTION_LIMIT): Feed {
   const scored = candidates.map((c) => ({ c, r: scoreCandidate(c, u) }));
   const ranked = scored
     .map((x) => x.r)
@@ -296,7 +330,7 @@ export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSecti
     ranked,
     questions,
     rankedIds: shown,
-    shownIds: new Set(Object.values(sections).flatMap((rs) => rs.map((r) => r.item.id))),
+    shownIds: new Set([sections.actNow, sections.yourReps, sections.radar, sections.done].flatMap((rs) => rs.map((r) => r.item.id))),
   };
 }
 

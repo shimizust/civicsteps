@@ -7,11 +7,9 @@ import { areasFor } from "@/lib/coverage";
 import { ItemCard } from "@/components/ItemCard";
 import { FeedList, type FeedEntry } from "@/components/FeedList";
 import { Card, Empty, Kicker, PageTitle, SectionTitle, cx } from "@/components/ui";
-import { matchesLevel, sectionRanked, type FeedLevel, type Ranked } from "@/lib/relevance";
+import { FEED_LEVELS, countByLevel, matchesLevel, sectionRanked, type FeedLevel, type Ranked } from "@/lib/relevance";
 import { QuickQuestions } from "@/components/QuickQuestions";
 import { LocalIndexProgress } from "@/components/LocalIndexProgress";
-
-const LEVELS = ["all", "city", "state", "federal"] as const;
 
 export default async function FeedPage({ searchParams }: { searchParams: Promise<{ level?: string }> }) {
   const { supabase, user } = await requireUser();
@@ -20,7 +18,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   if (!profile?.onboarded_at) redirect("/onboarding");
 
   const sp = await searchParams;
-  const level = LEVELS.includes(sp.level as FeedLevel) ? (sp.level as FeedLevel) : "all";
+  const level = FEED_LEVELS.includes(sp.level as FeedLevel) ? (sp.level as FeedLevel) : "all";
   const [feed, stats, officials, counts, coverage] = await Promise.all([
     getFeed(supabase, user.id),
     getStats(supabase, user.id),
@@ -34,19 +32,10 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const toEntries = (items: Ranked[]): FeedEntry[] =>
     items.map((r) => ({ r, reps: repsFor(r), place: feed.places[r.item.id] as Place | undefined }));
 
-  const sectionsFor = (l: FeedLevel) => sectionRanked(feed.ranked.filter((r) => matchesLevel(r.item, l)));
-  const sectionsByLevel = Object.fromEntries(LEVELS.map((l) => [l, sectionsFor(l)])) as Record<
-    FeedLevel,
-    ReturnType<typeof sectionRanked>
-  >;
-  const levelCounts = Object.fromEntries(
-    LEVELS.map((l) => {
-      const s = sectionsByLevel[l];
-      return [l, s.actNow.length + s.yourReps.length + s.radar.length];
-    }),
-  ) as Record<FeedLevel, number>;
-
-  const { actNow, yourReps, radar, done } = sectionsByLevel[level];
+  const levelCounts = countByLevel(feed.ranked);
+  const { actNow, yourReps, radar, done, totals } = sectionRanked(
+    feed.ranked.filter((r) => matchesLevel(r.item, level)),
+  );
   const picked = levelCounts.all;
 
   const { level: tier } = stats;
@@ -82,7 +71,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-8">
         <div className="min-w-0">
           <nav className="mb-2 flex flex-wrap gap-1.5" aria-label="Filter by level">
-            {LEVELS.map((l) => {
+            {FEED_LEVELS.map((l) => {
               const active = l === level;
               return (
                 <Link
@@ -107,7 +96,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
             <LocalIndexProgress zip={profile.zip} areas={coverage} now={Date.now()} />
           </div>
 
-          <SectionTitle hint="Deadlines in the next 2 weeks">Act now</SectionTitle>
+          <SectionTitle hint={sectionHint("Deadlines in the next 2 weeks", actNow.length, totals.actNow)}>Act now</SectionTitle>
           {actNow.length ? (
             <FeedList entries={toEntries(actNow)} hero />
           ) : (
@@ -122,12 +111,14 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
           {yourReps.length > 0 && (
             <>
-              <SectionTitle hint="Bills your representatives are sponsoring or voting on">Your reps are involved</SectionTitle>
+              <SectionTitle hint={sectionHint("Bills your representatives are sponsoring or voting on", yourReps.length, totals.yourReps)}>
+                Your reps are involved
+              </SectionTitle>
               <FeedList entries={toEntries(yourReps)} />
             </>
           )}
 
-          <SectionTitle>On your radar</SectionTitle>
+          <SectionTitle hint={sectionHint(undefined, radar.length, totals.radar)}>On your radar</SectionTitle>
           {radar.length ? (
             <FeedList entries={toEntries(radar)} />
           ) : level === "state" && !actNow.length && !yourReps.length ? (
@@ -152,7 +143,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
           {done.length > 0 && (
             <>
-              <SectionTitle>You took action</SectionTitle>
+              <SectionTitle hint={sectionHint(undefined, done.length, totals.done)}>You took action</SectionTitle>
               <ul className="space-y-2">
                 {done.map((r) => (
                   <li key={r.item.id}>
@@ -207,6 +198,18 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
         </aside>
       </div>
     </div>
+  );
+}
+
+function sectionHint(base: string | undefined, shown: number, total: number) {
+  if (total <= shown) return base;
+  const cap = <span className="tabular-nums">Showing top {shown} of {total}</span>;
+  return base ? (
+    <>
+      {base} · {cap}
+    </>
+  ) : (
+    cap
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { affinityPoints, buildFeed, feedStatus, learnTopicAffinity, matchesLevel, scoreCandidate, sectionRanked, type Candidate, type UserContext } from "@/lib/relevance";
+import { affinityPoints, buildFeed, countByLevel, feedStatus, learnTopicAffinity, matchesLevel, scoreCandidate, sectionRanked, type Candidate, type UserContext } from "@/lib/relevance";
 
 const now = new Date("2026-11-20T12:00:00Z");
 const inDays = (n: number) => new Date(now.getTime() + n * 86_400_000).toISOString();
@@ -131,6 +131,77 @@ describe("buildFeed", () => {
     expect(feed.radar.some((r) => r.item.id === "fed-1")).toBe(false);
     const fedOnly = sectionRanked(feed.ranked.filter((r) => matchesLevel(r.item, "federal")), 15);
     expect(fedOnly.radar.map((r) => r.item.id)).toEqual(["fed-1"]);
+  });
+
+  it("counts uncapped non-acted matches by level so city + state + federal equals all", () => {
+    const items = [
+      ...Array.from({ length: 16 }, (_, i) =>
+        cand(
+          { id: `city-${i}`, level: "city", jurisdiction_id: "ocd-division/country:us/state:wa/place:seattle", type: "agenda_item" },
+          { topics: ["transportation/transit"], significance: 4 },
+        ),
+      ),
+      ...Array.from({ length: 2 }, (_, i) =>
+        cand(
+          { id: `county-${i}`, level: "county", jurisdiction_id: "ocd-division/country:us/state:wa/place:seattle", type: "agenda_item" },
+          { topics: ["transportation/transit"], significance: 4 },
+        ),
+      ),
+      ...Array.from({ length: 17 }, (_, i) =>
+        cand({ id: `state-${i}`, level: "state" }, { topics: ["transportation/transit"], significance: 4 }),
+      ),
+      ...Array.from({ length: 18 }, (_, i) =>
+        cand({ id: `fed-${i}`, level: "federal" }, { topics: ["transportation/transit"], significance: 5 }),
+      ),
+      cand(
+        { id: "city-acted", level: "city", jurisdiction_id: "ocd-division/country:us/state:wa/place:seattle" },
+        { topics: ["transportation/transit"], significance: 5 },
+      ),
+      cand({ id: "fed-acted", level: "federal" }, { topics: ["transportation/transit"], significance: 5 }),
+    ];
+
+    const feed = buildFeed(items, { ...user, actedItemIds: new Set(["city-acted", "fed-acted"]) }, 15);
+    const counts = countByLevel(feed.ranked);
+    expect(counts).toEqual({ all: 53, city: 18, state: 17, federal: 18 });
+    expect(counts.city + counts.state + counts.federal).toBe(counts.all);
+  });
+
+  it("returns uncapped section totals while slicing shownIds to limitPerSection", () => {
+    const items = [
+      ...Array.from({ length: 3 }, (_, i) =>
+        cand(
+          { id: `act-${i}`, level: "federal", type: "comment_period", comment_deadline: inDays(i + 1) },
+          { topics: ["transportation/transit"], significance: 4 },
+        ),
+      ),
+      ...Array.from({ length: 4 }, (_, i) =>
+        cand({ id: `rep-${i}`, level: "state" }, { topics: ["transportation/transit"], significance: 4 }, ["rep-1"]),
+      ),
+      ...Array.from({ length: 5 }, (_, i) =>
+        cand({ id: `radar-${i}`, level: "federal" }, { topics: ["transportation/transit"], significance: 5 }),
+      ),
+      ...Array.from({ length: 3 }, (_, i) =>
+        cand({ id: `done-${i}`, level: "federal" }, { topics: ["transportation/transit"], significance: 5 }),
+      ),
+    ];
+
+    const feed = buildFeed(items, { ...user, actedItemIds: new Set(["done-0", "done-1", "done-2"]) }, 2);
+    expect(feed.actNow).toHaveLength(2);
+    expect(feed.yourReps).toHaveLength(2);
+    expect(feed.radar).toHaveLength(2);
+    expect(feed.done).toHaveLength(2);
+    expect(feed.totals).toEqual({ actNow: 3, yourReps: 4, radar: 5, done: 3 });
+    expect(feed.shownIds.size).toBe(8);
+
+    const counts = countByLevel(feed.ranked);
+    expect(feed.totals.actNow + feed.totals.yourReps + feed.totals.radar).toBe(counts.all);
+
+    const fedOnly = sectionRanked(feed.ranked.filter((r) => matchesLevel(r.item, "federal")), 2);
+    expect(fedOnly.totals).toEqual({ actNow: 3, yourReps: 0, radar: 5, done: 3 });
+    expect(fedOnly.totals.actNow + fedOnly.totals.yourReps + fedOnly.totals.radar).toBe(counts.federal);
+
+    const where = { inArea: true, active: true, vote: null };
+    expect(feedStatus("radar-4", where, feed)).toBe("ranked_lower");
   });
 
   it("excludes local items with a deadline but no connection to the user", () => {
