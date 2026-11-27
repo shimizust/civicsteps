@@ -23,7 +23,7 @@ import { HEURISTIC_VERSION, heuristicAnalysis } from "@/lib/ai/heuristic";
 import type { Fact, Registry } from "@/lib/facts";
 import { consolidateFacts } from "./consolidateFacts";
 import { locateItems } from "./locate";
-import { contentHash, type NormalizedItem } from "./normalize";
+import { contentHash, interleaveBuckets, type NormalizedItem } from "./normalize";
 import { fetchOpenCommentPeriods } from "./federalRegister";
 import { fetchBillDetail, fetchUpdatedBills, normalizeCongressBill } from "./congress";
 import { ACTIVE_DAYS, ENACTED_DAYS, fetchStateBills } from "./openstates";
@@ -377,14 +377,29 @@ async function submitBatch(items: AnalyzableItem[], model: string, label: string
   log(`${label}: submitted ${items.length} items to ${model} (batch ${batchId})`);
 }
 
+const FETCH_SOURCES = ["federalregister", "congress", "openstates", "legistar"] as const;
+const PENDING_SOURCES = ["federalregister", "congress", "openstates", "legistar", "regulations", "curated"] as const;
+
+async function queryPending<T>(runQuery: (source: string | null, limit: number) => Promise<T[]>, filter?: (row: T) => boolean): Promise<T[]> {
+  const keep = (rows: T[]) => (filter ? rows.filter(filter) : rows);
+  if (!LIMIT) return keep(await runQuery(null, 10_000));
+  const ranSources = ONLY ? FETCH_SOURCES.filter((s) => ONLY.has(s)) : [...FETCH_SOURCES];
+  if (ranSources.length) {
+    const buckets = await Promise.all(ranSources.map(async (source) => keep(await runQuery(source, LIMIT))));
+    return buckets.flat();
+  }
+  const buckets = await Promise.all(PENDING_SOURCES.map(async (source) => keep(await runQuery(source, LIMIT))));
+  return interleaveBuckets(buckets, LIMIT);
+}
+
 async function submitPending() {
-  const { data, error } = await db
-    .from("items")
-    .select(ANALYZE_COLUMNS)
-    .eq("analysis_status", "pending")
-    .order("updated_at", { ascending: false })
-    .limit(LIMIT ?? 10_000);
-  if (error) throw error;
+  const data = await queryPending<AnalyzableItem>(async (source, limit) => {
+    let q = db.from("items").select(ANALYZE_COLUMNS).eq("analysis_status", "pending");
+    if (source) q = q.eq("source", source);
+    const { data, error } = await q.order("updated_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return data;
+  });
   await submitBatch(data, FAST_MODEL, "analysis");
 }
 
@@ -434,16 +449,21 @@ async function requeueStale() {
 
 /** No API key: tag pending items with keyword rules so the feed still works. They stay `pending`. */
 async function heuristicPending() {
-  const { data, error } = await db
-    .from("items")
-    .select("id, title, description, agency, item_analysis(prompt_version)")
-    .eq("analysis_status", "pending")
-    .limit(LIMIT ?? 10_000);
-  if (error) throw error;
+  const rows = await queryPending(
+    async (source, limit) => {
+      let q = db
+        .from("items")
+        .select("id, title, description, agency, item_analysis(prompt_version)")
+        .eq("analysis_status", "pending");
+      if (source) q = q.eq("source", source);
+      const { data, error } = await q.order("updated_at", { ascending: false }).limit(limit);
+      if (error) throw error;
+      return data;
+    },
+    (d) => !d.item_analysis || d.item_analysis.prompt_version !== HEURISTIC_VERSION,
+  );
   // New items, plus ones tagged by an older version of the rules.
-  const fresh = data
-    .filter((d) => !d.item_analysis || d.item_analysis.prompt_version !== HEURISTIC_VERSION)
-    .map(({ item_analysis: _a, ...i }) => i);
+  const fresh = rows.map(({ item_analysis: _a, ...i }) => i);
   await tagWithHeuristics(fresh);
   log(`analyze: no ANTHROPIC_API_KEY — tagged ${fresh.length} items with keyword rules (they'll get AI analysis once a key is set)`);
 }
@@ -562,13 +582,28 @@ async function main() {
   await runSource("federalregister", () => fetchOpenCommentPeriods());
 
   await runSource("congress", async () => {
-    const bills = await fetchUpdatedBills(since, LIMIT ?? 500);
-    const { data: existing } = await db
-      .from("items")
-      .select("external_id, description")
-      .eq("source", "congress")
-      .in("external_id", bills.map((b) => `${b.congress}-${b.type}-${b.number}`));
-    const known = new Map((existing ?? []).map((e) => [e.external_id, e.description]));
+    let congressSince = since;
+    if (!args["since-days"]) {
+      const activeCutoff = daysAgo(ACTIVE_DAYS).toISOString().slice(0, 10);
+      const { count, error: countErr } = await db
+        .from("items")
+        .select("id", { count: "exact", head: true })
+        .eq("source", "congress")
+        .gte("last_action_at", activeCutoff);
+      if (countErr) throw countErr;
+      if ((count ?? 0) < 20) congressSince = daysAgo(14);
+    }
+    const bills = await fetchUpdatedBills(congressSince, LIMIT ?? 500);
+    const known = new Map<string, string | null>();
+    for (const ids of chunk(bills.map((b) => `${b.congress}-${b.type}-${b.number}`), 100)) {
+      const { data: existing, error: exErr } = await db
+        .from("items")
+        .select("external_id, description")
+        .eq("source", "congress")
+        .in("external_id", ids);
+      if (exErr) throw exErr;
+      for (const e of existing ?? []) known.set(e.external_id, e.description);
+    }
     const out: NormalizedItem[] = [];
     for (const b of bills) {
       const id = `${b.congress}-${b.type}-${b.number}`;

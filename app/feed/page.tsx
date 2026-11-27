@@ -7,7 +7,7 @@ import { areasFor } from "@/lib/coverage";
 import { ItemCard } from "@/components/ItemCard";
 import { FeedList, type FeedEntry } from "@/components/FeedList";
 import { Card, Empty, Kicker, PageTitle, SectionTitle, cx } from "@/components/ui";
-import type { Ranked } from "@/lib/relevance";
+import { matchesLevel, sectionRanked, type FeedLevel, type Ranked } from "@/lib/relevance";
 import { QuickQuestions } from "@/components/QuickQuestions";
 import { LocalIndexProgress } from "@/components/LocalIndexProgress";
 
@@ -20,7 +20,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   if (!profile?.onboarded_at) redirect("/onboarding");
 
   const sp = await searchParams;
-  const level = LEVELS.includes(sp.level as (typeof LEVELS)[number]) ? (sp.level as (typeof LEVELS)[number]) : "all";
+  const level = LEVELS.includes(sp.level as FeedLevel) ? (sp.level as FeedLevel) : "all";
   const [feed, stats, officials, counts, coverage] = await Promise.all([
     getFeed(supabase, user.id),
     getStats(supabase, user.id),
@@ -34,19 +34,20 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const toEntries = (items: Ranked[]): FeedEntry[] =>
     items.map((r) => ({ r, reps: repsFor(r), place: feed.places[r.item.id] as Place | undefined }));
 
-  const matchLevel = (r: Ranked, l: (typeof LEVELS)[number]) =>
-    l === "all" || r.item.level === l || (l === "city" && r.item.level === "county");
-  const allActive = [...feed.actNow, ...feed.yourReps, ...feed.radar];
-  const levelCounts = Object.fromEntries(LEVELS.map((l) => [l, allActive.filter((r) => matchLevel(r, l)).length])) as Record<
-    (typeof LEVELS)[number],
-    number
+  const sectionsFor = (l: FeedLevel) => sectionRanked(feed.ranked.filter((r) => matchesLevel(r.item, l)));
+  const sectionsByLevel = Object.fromEntries(LEVELS.map((l) => [l, sectionsFor(l)])) as Record<
+    FeedLevel,
+    ReturnType<typeof sectionRanked>
   >;
+  const levelCounts = Object.fromEntries(
+    LEVELS.map((l) => {
+      const s = sectionsByLevel[l];
+      return [l, s.actNow.length + s.yourReps.length + s.radar.length];
+    }),
+  ) as Record<FeedLevel, number>;
 
-  const keep = (r: Ranked) => matchLevel(r, level);
-  const actNow = feed.actNow.filter(keep);
-  const yourReps = feed.yourReps.filter(keep);
-  const radar = feed.radar.filter(keep);
-  const picked = allActive.length;
+  const { actNow, yourReps, radar, done } = sectionsByLevel[level];
+  const picked = levelCounts.all;
 
   const { level: tier } = stats;
   const pct = tier.next
@@ -136,6 +137,12 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               <Link className="text-accent underline" href="/browse?level=state">Browse all state items</Link> or{" "}
               <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
             </Empty>
+          ) : level === "federal" && !actNow.length && !yourReps.length ? (
+            <Empty>
+              No federal bills or public comment periods match your interests right now.{" "}
+              <Link className="text-accent underline" href="/browse?level=federal">Browse all federal items</Link> or{" "}
+              <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
+            </Empty>
           ) : (
             <Empty>
               Nothing else matches yet. Try following more topics or adding a pet issue.{" "}
@@ -143,11 +150,11 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
             </Empty>
           )}
 
-          {feed.done.length > 0 && (
+          {done.length > 0 && (
             <>
               <SectionTitle>You took action</SectionTitle>
               <ul className="space-y-2">
-                {feed.done.map((r) => (
+                {done.map((r) => (
                   <li key={r.item.id}>
                     <ItemCard r={r} variant="compact" />
                   </li>

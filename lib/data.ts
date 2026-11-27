@@ -142,7 +142,9 @@ export async function getFeed(db: DB, userId: string) {
     now: new Date(),
   });
   const home = profile?.lat != null && profile?.lng != null ? { lat: profile.lat, lng: profile.lng } : null;
-  const shown = [...feed.actNow, ...feed.yourReps, ...feed.radar].map((r) => r.item.id);
+  const shown = feed.ranked
+    .filter((r) => !r.acted && (r.item.level === "city" || r.item.level === "county"))
+    .map((r) => r.item.id);
   return { ...feed, places: await nearestPlaces(db, home, shown) };
 }
 

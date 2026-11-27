@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { affinityPoints, buildFeed, feedStatus, learnTopicAffinity, scoreCandidate, type Candidate, type UserContext } from "@/lib/relevance";
+import { affinityPoints, buildFeed, feedStatus, learnTopicAffinity, matchesLevel, scoreCandidate, sectionRanked, type Candidate, type UserContext } from "@/lib/relevance";
 
 const now = new Date("2026-11-20T12:00:00Z");
 const inDays = (n: number) => new Date(now.getTime() + n * 86_400_000).toISOString();
@@ -79,6 +79,29 @@ describe("scoreCandidate", () => {
     const r = scoreCandidate(local, user)!;
     expect(r.reasons).toEqual(expect.arrayContaining(["Your representative is involved", "Happening in your city", "Affects renters"]));
   });
+
+  it("scores open comment periods closing in >14 days high enough to reach the feed", () => {
+    const rule = cand(
+      { id: "fr-open", type: "comment_period", level: "federal", comment_deadline: inDays(30) },
+      { topics: ["transportation/transit"], significance: 3 },
+    );
+    const feed = buildFeed([rule], user);
+    expect(feed.radar.map((r) => r.item.id)).toEqual(["fr-open"]);
+
+    const minor = cand(
+      { id: "fr-minor", type: "comment_period", level: "federal", comment_deadline: inDays(30) },
+      { topics: ["transportation/transit"], significance: 2 },
+    );
+    expect(buildFeed([minor], user).radar).toHaveLength(0);
+  });
+
+  it("keeps major federal bills matching a followed topic when latest action was 14 days ago", () => {
+    const bill = cand(
+      { id: "cg-14d", level: "federal", last_action_at: inDays(-14).slice(0, 10) },
+      { topics: ["transportation/transit"], significance: 4 },
+    );
+    expect(buildFeed([bill], user).radar.map((r) => r.item.id)).toEqual(["cg-14d"]);
+  });
 });
 
 describe("buildFeed", () => {
@@ -91,6 +114,23 @@ describe("buildFeed", () => {
     expect(feed.actNow.map((r) => r.item.id)).toEqual(["soon", "later"]);
     expect(feed.radar.map((r) => r.item.id)).toEqual(["far"]);
     expect(feed.done.map((r) => r.item.id)).toEqual(["done"]);
+  });
+
+  it("preserves federal items for level tabs even when city items fill the all-levels cap", () => {
+    const cities = Array.from({ length: 20 }, (_, i) =>
+      cand(
+        { id: `city-${i}`, level: "city", jurisdiction_id: "ocd-division/country:us/state:wa/place:seattle", type: "agenda_item" },
+        { topics: ["transportation/transit"], significance: 4 },
+      ),
+    );
+    const fed = cand(
+      { id: "fed-1", level: "federal", type: "comment_period", comment_deadline: inDays(30) },
+      { topics: ["transportation/transit"], significance: 3 },
+    );
+    const feed = buildFeed([...cities, fed], user, 15);
+    expect(feed.radar.some((r) => r.item.id === "fed-1")).toBe(false);
+    const fedOnly = sectionRanked(feed.ranked.filter((r) => matchesLevel(r.item, "federal")), 15);
+    expect(fedOnly.radar.map((r) => r.item.id)).toEqual(["fed-1"]);
   });
 
   it("excludes local items with a deadline but no connection to the user", () => {

@@ -1,5 +1,5 @@
 /** State bills from Open States v3 — only for states where we have users, to stay inside the free quota. */
-import { getJson, stripHtml, truncate, type NormalizedItem } from "./normalize";
+import { ACTIVE_DAYS, getJson, stripHtml, truncate, type NormalizedItem } from "./normalize";
 
 type OSBill = {
   id: string;
@@ -18,7 +18,7 @@ type OSBill = {
 };
 
 /** How long feeds show a state bill after its last action, and a signed law after signing (feed_candidates()). */
-export const ACTIVE_DAYS = 45;
+export { ACTIVE_DAYS } from "./normalize";
 export const ENACTED_DAYS = 120;
 
 /** When the bill was signed into law (or became law without a signature), from Open States' action classifications. */

@@ -190,8 +190,11 @@ export function scoreCandidate(c: Candidate, u: UserContext): Ranked | null {
     if (daysLeft <= 3) score += 8;
     else if (daysLeft <= 7) score += 5;
     else if (daysLeft <= 14) score += 3;
-  } else if (item.last_action_at && u.now.getTime() - new Date(item.last_action_at).getTime() < 7 * DAY) {
-    score += 2;
+    else score += 2;
+  } else if (item.last_action_at) {
+    const age = u.now.getTime() - new Date(item.last_action_at).getTime();
+    if (age < 7 * DAY) score += 2;
+    else if (age < 21 * DAY) score += 1;
   }
 
   const impact = impactFor(c, u, matches);
@@ -231,11 +234,39 @@ function impactFor(c: Candidate, u: UserContext, matches: InterestMatch[]): Pers
 
 export const MIN_SCORE = 8;
 
-export type Feed = {
+export type FeedLevel = "all" | "city" | "state" | "federal";
+
+export function matchesLevel(item: Pick<FeedItem, "level">, level: FeedLevel): boolean {
+  return level === "all" || item.level === level || (level === "city" && item.level === "county");
+}
+
+export type FeedSections = {
   actNow: Ranked[];
   yourReps: Ranked[];
   radar: Ranked[];
   done: Ranked[];
+};
+
+export function sectionRanked(ranked: Ranked[], limitPerSection = 15): FeedSections {
+  const feed: FeedSections = { actNow: [], yourReps: [], radar: [], done: [] };
+  for (const r of ranked) {
+    if (r.acted) feed.done.push(r);
+    else if (r.daysLeft !== null && r.daysLeft >= 0 && r.daysLeft <= 14) feed.actNow.push(r);
+    else if (r.my_official_ids.length) feed.yourReps.push(r);
+    else feed.radar.push(r);
+  }
+  feed.actNow.sort((a, b) => (a.daysLeft ?? 99) - (b.daysLeft ?? 99) || b.score - a.score);
+  return {
+    actNow: feed.actNow.slice(0, limitPerSection),
+    yourReps: feed.yourReps.slice(0, limitPerSection),
+    radar: feed.radar.slice(0, limitPerSection),
+    done: feed.done.slice(0, limitPerSection),
+  };
+}
+
+export type Feed = FeedSections & {
+  /** All items that cleared MIN_SCORE (sorted by score), before section slicing, so level tabs don't starve. */
+  ranked: Ranked[];
   questions: RankedQuestion[];
   /** Items that cleared MIN_SCORE, including ones cut by the per-section limit. */
   rankedIds: Set<string>;
@@ -259,22 +290,10 @@ export function buildFeed(candidates: Candidate[], u: UserContext, limitPerSecti
     .map((x) => ({ score: 1, impact: x.r?.impact ?? impactFor(x.c, u, []) }));
   const questions = rankOpenQuestions([...ranked.filter((r) => !r.acted), ...hidden]);
 
-  const feed: Pick<Feed, "actNow" | "yourReps" | "radar" | "done"> = { actNow: [], yourReps: [], radar: [], done: [] };
-  for (const r of ranked) {
-    if (r.acted) feed.done.push(r);
-    else if (r.daysLeft !== null && r.daysLeft >= 0 && r.daysLeft <= 14) feed.actNow.push(r);
-    else if (r.my_official_ids.length) feed.yourReps.push(r);
-    else feed.radar.push(r);
-  }
-  feed.actNow.sort((a, b) => (a.daysLeft ?? 99) - (b.daysLeft ?? 99) || b.score - a.score);
-  const sections = {
-    actNow: feed.actNow.slice(0, limitPerSection),
-    yourReps: feed.yourReps.slice(0, limitPerSection),
-    radar: feed.radar.slice(0, limitPerSection),
-    done: feed.done.slice(0, limitPerSection),
-  };
+  const sections = sectionRanked(ranked, limitPerSection);
   return {
     ...sections,
+    ranked,
     questions,
     rankedIds: shown,
     shownIds: new Set(Object.values(sections).flatMap((rs) => rs.map((r) => r.item.id))),

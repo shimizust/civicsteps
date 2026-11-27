@@ -20,8 +20,12 @@ const FIELDS = [
   "html_url", "type", "publication_date", "docket_ids", "regulations_dot_gov_info",
 ];
 
+// Routine Paperwork Reduction Act form-renewal notices drown out proposed rules and substantive notices.
+const SKIP_NOTICE_TITLE = /\binformation collection\b|submission for omb review/i;
+
 export function normalizeFRDoc(d: FRDoc): NormalizedItem | null {
   if (!d.comments_close_on) return null;
+  if (d.type === "Notice" && SKIP_NOTICE_TITLE.test(d.title)) return null;
   const agency = d.agencies.at(-1)?.name ?? d.agencies[0]?.name ?? null; // most specific (sub-agency) last
   const regsDoc = d.regulations_dot_gov_info?.document_id;
   return {
@@ -62,5 +66,8 @@ export async function fetchOpenCommentPeriods(maxPages = 10): Promise<Normalized
     }
     next = data.next_page_url ?? null;
   }
-  return out;
+  // Surface Proposed Rules and Rules ahead of Notices so capped runs aren't crowded out by notices.
+  const priority = (status: string | null | undefined) =>
+    status === "Proposed Rule" ? 0 : status === "Rule" ? 1 : 2;
+  return out.sort((a, b) => priority(a.status) - priority(b.status));
 }

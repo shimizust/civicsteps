@@ -18,6 +18,26 @@ export function contentHash(i: Pick<NormalizedItem, "title" | "description" | "t
 
 export const OCD_US = "ocd-division/country:us";
 
+/** How long feeds keep an item active after its latest action (matches feed_candidates()). */
+export const ACTIVE_DAYS = 45;
+
+/** Takes items round-robin across buckets so a cap doesn't let one source starve the others. */
+export function interleaveBuckets<T>(buckets: T[][], limit: number): T[] {
+  const out: T[] = [];
+  for (let i = 0; out.length < limit; i++) {
+    let added = false;
+    for (const bucket of buckets) {
+      if (i < bucket.length) {
+        out.push(bucket[i]);
+        added = true;
+        if (out.length >= limit) break;
+      }
+    }
+    if (!added) break;
+  }
+  return out;
+}
+
 export function stripHtml(s: string | null | undefined): string | null {
   if (!s) return null;
   return s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim() || null;

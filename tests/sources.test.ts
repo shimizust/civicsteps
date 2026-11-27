@@ -5,8 +5,8 @@ import records from "./fixtures/legistar-officerecords.json";
 import cg from "./fixtures/congress-bills.json";
 import { normalizeFRDoc } from "@/ingest/federalRegister";
 import { councilMemberFromRecord, normalizeMatter } from "@/ingest/legistar";
-import { congressBillUrl, normalizeCongressBill } from "@/ingest/congress";
-import { contentHash } from "@/ingest/normalize";
+import { congressBillUrl, currentCongress, isActiveBill, normalizeCongressBill } from "@/ingest/congress";
+import { contentHash, interleaveBuckets } from "@/ingest/normalize";
 import { enactedDate, isFeedWorthy, normalizeOpenStatesBill } from "@/ingest/openstates";
 import { federalOfficialFromLegislator } from "@/lib/civic/officials";
 import { LOCAL_SOURCES } from "@/ingest/legistar.config";
@@ -20,6 +20,20 @@ describe("Federal Register", () => {
     expect(item.agency).toBe("National Park Service");
     expect(item.comment_deadline).toBe("2026-12-16T23:59:00-05:00");
     expect(item.action_url).toBe("https://www.regulations.gov/commenton/NPS-2026-0265-0001");
+  });
+
+  it("keeps substantive notices and skips Paperwork Reduction Act form notices", () => {
+    expect(normalizeFRDoc(fr.results[0] as never)).not.toBeNull();
+    const pra = {
+      ...(fr.results[0] as object),
+      title: "Agency Information Collection Activities; Proposals, Submissions, and Approvals",
+    };
+    expect(normalizeFRDoc(pra as never)).toBeNull();
+    const omb = {
+      ...(fr.results[0] as object),
+      title: "Submission for OMB Review; Comment Request",
+    };
+    expect(normalizeFRDoc(omb as never)).toBeNull();
   });
 });
 
@@ -52,6 +66,24 @@ describe("Congress.gov", () => {
     const item = normalizeCongressBill(b as never, { summary: "Authorizes NASA.", sponsors: ["X000001"] });
     expect(item.title).toBe("S. 933: NASA Authorization Act of 2026");
     expect(item.officials).toEqual([{ official_id: "bioguide:X000001", role: "sponsor" }]);
+  });
+
+  it("computes the current Congress across Jan 3 boundaries and filters active bills", () => {
+    expect(currentCongress(new Date("2025-01-02T23:59:00Z"))).toBe(118);
+    expect(currentCongress(new Date("2025-01-03T12:00:00Z"))).toBe(119);
+    expect(currentCongress(new Date("2026-11-26T12:00:00Z"))).toBe(119);
+    expect(currentCongress(new Date("2027-01-03T12:00:00Z"))).toBe(120);
+
+    const now = new Date("2026-11-26T12:00:00Z");
+    expect(isActiveBill(cg.bills[0], now)).toBe(true);
+    expect(isActiveBill(cg.bills[1], now)).toBe(false);
+  });
+});
+
+describe("interleaveBuckets", () => {
+  it("takes items round-robin across uneven buckets up to limit", () => {
+    expect(interleaveBuckets([["a1", "a2", "a3"], ["b1"], ["c1", "c2"]], 5)).toEqual(["a1", "b1", "c1", "a2", "c2"]);
+    expect(interleaveBuckets([[], ["b1"]], 3)).toEqual(["b1"]);
   });
 });
 

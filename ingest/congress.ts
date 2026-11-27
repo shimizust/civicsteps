@@ -1,5 +1,5 @@
 /** Federal bills from the Congress.gov API (api.data.gov key; DEMO_KEY works for light testing). */
-import { getJson, OCD_US, stripHtml, truncate, type NormalizedItem } from "./normalize";
+import { ACTIVE_DAYS, getJson, OCD_US, stripHtml, truncate, type NormalizedItem } from "./normalize";
 
 type CGBill = {
   congress: number;
@@ -61,20 +61,43 @@ const api = (path: string, params: Record<string, string> = {}) => {
   return u;
 };
 
-/** Bills updated since `since`. Detail calls (sponsor + CRS summary) only for bills in `needDetail`. */
-export async function fetchUpdatedBills(since: Date, maxBills = 500): Promise<CGBill[]> {
+/** Current Congress number (each convenes Jan 3 of odd years; 1st Congress = 1789). */
+export function currentCongress(now = new Date()): number {
+  const year = now.getUTCFullYear();
+  const effectiveYear = now.getUTCMonth() === 0 && now.getUTCDate() < 3 ? year - 1 : year;
+  return Math.floor((effectiveYear - 1789) / 2) + 1;
+}
+
+/** Whether a bill has had legislative action inside the active feed window. */
+export function isActiveBill(b: Pick<CGBill, "latestAction" | "updateDate">, now = new Date()): boolean {
+  const d = b.latestAction?.actionDate ?? b.updateDate;
+  const ms = Date.parse(d);
+  return Number.isFinite(ms) && (now.getTime() - ms) / 86_400_000 < ACTIVE_DAYS;
+}
+
+/** Active bills in the current Congress updated since `since`. Detail calls happen only for newly seen bills. */
+export async function fetchUpdatedBills(since: Date, maxBills = 500, now = new Date()): Promise<CGBill[]> {
   const bills: CGBill[] = [];
-  for (let offset = 0; offset < maxBills; offset += 250) {
-    const data = await getJson<{ bills: CGBill[] }>(
-      api("/bill", {
+  const pageSize = Math.min(250, Math.max(maxBills, 50));
+  const maxPages = Math.max(4, Math.ceil(maxBills / pageSize) * 3);
+  const congress = currentCongress(now);
+  for (let page = 0; page < maxPages && bills.length < maxBills; page++) {
+    const data = await getJson<{ bills?: CGBill[] }>(
+      api(`/bill/${congress}`, {
         fromDateTime: since.toISOString().replace(/\.\d+Z$/, "Z"),
-        sort: "updateDate+desc",
-        limit: String(Math.min(250, maxBills - offset)),
-        offset: String(offset),
+        sort: "updateDate desc",
+        limit: String(pageSize),
+        offset: String(page * pageSize),
       }),
     );
-    bills.push(...data.bills);
-    if (data.bills.length < 250) break;
+    const batch = data.bills ?? [];
+    for (const b of batch) {
+      if (isActiveBill(b, now)) {
+        bills.push(b);
+        if (bills.length >= maxBills) break;
+      }
+    }
+    if (batch.length < pageSize) break;
   }
   return bills;
 }
