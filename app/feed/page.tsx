@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Bookmark, Flame } from "lucide-react";
+import { ArrowRight, Bookmark, Flame, Loader2 } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { getAreaProgress, getFeed, getIndexCounts, getMyOfficials, getProfile, getStats, type Place } from "@/lib/data";
-import { areasFor } from "@/lib/coverage";
+import { areasFor, citySupportFor, formatList, summarizeCoverage } from "@/lib/coverageStatus";
+import { placeName } from "@/lib/place";
 import { ItemCard } from "@/components/ItemCard";
 import { FeedList, type FeedEntry } from "@/components/FeedList";
 import { Card, Empty, Kicker, PageTitle, Pill, SectionTitle, cx } from "@/components/ui";
@@ -44,6 +45,13 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   );
   const picked = levelCounts.all;
   const updatedFavs = Object.keys(feed.favoriteUpdates).length;
+  const now = Date.now();
+  const place = placeName(profile.jurisdiction_ids, profile.state);
+  const citySupport = citySupportFor(profile.jurisdiction_ids);
+  const coverageSummary = summarizeCoverage(coverage, now);
+  const levelEmpty = !actNow.length && !followingUp.length && !radar.length && !done.length;
+  const showCityStatusEmpty = level === "city" && levelEmpty && (!citySupport.supported || coverageSummary.cityPending);
+  const showStateStatusEmpty = level === "state" && levelEmpty && coverageSummary.statePending;
 
   const { level: tier } = stats;
   const pct = tier.next
@@ -80,11 +88,14 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
           <nav className="mb-2 flex flex-wrap gap-1.5" aria-label="Filter by level">
             {FEED_LEVELS.map((l) => {
               const active = l === level;
+              const tabIndexing =
+                (l === "city" && coverageSummary.cityInProgress) || (l === "state" && coverageSummary.stateInProgress);
               return (
                 <Link
                   key={l}
                   href={l === "all" ? "/feed" : `/feed?level=${l}`}
                   aria-current={active ? "page" : undefined}
+                  title={tabIndexing ? "Indexing in progress" : undefined}
                   className={cx(
                     "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                     active
@@ -94,82 +105,172 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
                 >
                   <span className="capitalize">{l === "all" ? "All levels" : l}</span>
                   <span className={cx("text-xs tabular-nums", active ? "opacity-85" : "text-muted")}>({levelCounts[l]})</span>
+                  {tabIndexing && (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                      <span className="sr-only">indexing in progress</span>
+                    </>
+                  )}
                 </Link>
               );
             })}
           </nav>
 
           <div className="mt-4">
-            <LocalIndexProgress zip={profile.zip} areas={coverage} now={Date.now()} />
+            <LocalIndexProgress zip={profile.zip} place={place} citySupport={citySupport} areas={coverage} now={now} />
           </div>
 
-          <SectionTitle hint={sectionHint("Deadlines in the next 2 weeks", actNow.length, totals.actNow)}>Act now</SectionTitle>
-          {actNow.length ? (
-            <FeedList entries={toEntries(actNow)} hero />
+          {showCityStatusEmpty ? (
+            <Empty>
+              {citySupport.supported && coverageSummary.cityInProgress ? (
+                <>
+                  We&apos;re indexing recent {citySupport.name} council items right now. They&apos;ll appear here automatically as
+                  they&apos;re analyzed.
+                </>
+              ) : citySupport.supported && coverageSummary.cityPending ? (
+                <>
+                  Recent {citySupport.name} council items are scheduled for the next indexing run and will appear here once analyzed.
+                </>
+              ) : !citySupport.supported && citySupport.place ? (
+                <>
+                  City council agendas aren&apos;t connected for {citySupport.place} yet. CivicSteps currently indexes city council
+                  items for {formatList(citySupport.supportedCities)} — your {profile.state ?? "state"} bills and federal items
+                  {profile.zip ? ` for ZIP ${profile.zip}` : ""} are still in your feed.
+                </>
+              ) : (
+                <>
+                  {profile.zip ? `ZIP ${profile.zip}` : "This ZIP"} isn&apos;t inside a covered city boundary, so city council items
+                  aren&apos;t available here. Your {profile.state ?? "state"} bills and federal items are still in your feed.
+                </>
+              )}{" "}
+              <Link className="text-accent underline" href="/feed">
+                View all levels
+              </Link>{" "}
+              or{" "}
+              <Link className="text-accent underline" href={citySupport.supported ? "/browse" : "/browse?level=city&scope=all"}>
+                {citySupport.supported ? "browse all items" : "browse indexed cities"}
+              </Link>
+              .
+            </Empty>
+          ) : showStateStatusEmpty ? (
+            <Empty>
+              {coverageSummary.stateInProgress
+                ? `We're indexing recent ${profile.state ?? "state"} bills right now. They'll appear here automatically as they're analyzed.`
+                : `Recent ${profile.state ?? "state"} bills are scheduled for the next indexing run and will appear here once analyzed.`}{" "}
+              <Link className="text-accent underline" href="/feed">
+                View all levels
+              </Link>{" "}
+              or{" "}
+              <Link className="text-accent underline" href="/browse">
+                browse all items
+              </Link>
+              .
+            </Empty>
           ) : (
-            <Empty>No deadlines coming up on your issues. We&apos;ll email you when one opens.</Empty>
+            <>
+              <SectionTitle hint={sectionHint("Deadlines in the next 2 weeks", actNow.length, totals.actNow)}>Act now</SectionTitle>
+              {actNow.length ? (
+                <FeedList entries={toEntries(actNow)} hero />
+              ) : (
+                <Empty>No deadlines coming up on your issues. We&apos;ll email you when one opens.</Empty>
+              )}
+
+              {feed.questions.length > 0 && (
+                <div className="mt-6 lg:hidden">
+                  <QuickQuestions questions={feed.questions} />
+                </div>
+              )}
+
+              {followingUp.length > 0 && (
+                <>
+                  <SectionTitle
+                    hint={sectionHint(
+                      <>
+                        Issues you favorited to keep tracking ·{" "}
+                        <Link className="text-accent hover:underline" href="/favorites">
+                          View all
+                        </Link>
+                      </>,
+                      followingUp.length,
+                      totals.followingUp,
+                    )}
+                  >
+                    Following up
+                  </SectionTitle>
+                  <FeedList entries={toEntries(followingUp)} />
+                </>
+              )}
+
+              <SectionTitle hint={sectionHint("Matched to your issues, most relevant first", radar.length, totals.radar)}>
+                On your radar
+              </SectionTitle>
+              {radar.length ? (
+                <FeedList entries={toEntries(radar)} />
+              ) : level === "city" && !citySupport.supported ? (
+                <Empty>
+                  {citySupport.place
+                    ? `City council agendas aren't connected for ${citySupport.place} yet (currently ${formatList(citySupport.supportedCities)}).`
+                    : "This ZIP code isn't inside a covered city boundary, so city council items aren't available here."}{" "}
+                  <Link className="text-accent underline" href="/browse?level=city&scope=all">
+                    Browse indexed cities
+                  </Link>{" "}
+                  or{" "}
+                  <Link className="text-accent underline" href="/feed">
+                    view all levels
+                  </Link>
+                  .
+                </Empty>
+              ) : level === "city" && !actNow.length && !followingUp.length && citySupport.supported ? (
+                <Empty>
+                  No {citySupport.name} council items match your interests right now.{" "}
+                  <Link className="text-accent underline" href="/browse?level=city">
+                    Browse all city items
+                  </Link>{" "}
+                  or{" "}
+                  <Link className="text-accent underline" href="/onboarding?step=3">
+                    edit interests
+                  </Link>
+                  .
+                </Empty>
+              ) : level === "state" && !actNow.length && !followingUp.length ? (
+                <Empty>
+                  No {profile.state ?? "state"} bills match your interests right now. Between legislative sessions, this shows laws signed
+                  in the last four months.{" "}
+                  <Link className="text-accent underline" href="/browse?level=state">Browse all state items</Link> or{" "}
+                  <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
+                </Empty>
+              ) : level === "federal" && !actNow.length && !followingUp.length ? (
+                <Empty>
+                  No federal bills or public comment periods match your interests right now.{" "}
+                  <Link className="text-accent underline" href="/browse?level=federal">Browse all federal items</Link> or{" "}
+                  <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
+                </Empty>
+              ) : (
+                <Empty>
+                  Nothing else matches yet. Try following more topics or adding a pet issue.{" "}
+                  <Link className="text-accent underline" href="/onboarding?step=3">Edit interests</Link>
+                </Empty>
+              )}
+
+              {done.length > 0 && (
+                <>
+                  <SectionTitle hint={sectionHint(undefined, done.length, totals.done)}>You took action</SectionTitle>
+                  <ul className="space-y-2">
+                    {done.map((r) => (
+                      <li key={r.item.id}>
+                        <ItemCard r={r} variant="compact" />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
           )}
 
-          {feed.questions.length > 0 && (
+          {(showCityStatusEmpty || showStateStatusEmpty) && feed.questions.length > 0 && (
             <div className="mt-6 lg:hidden">
               <QuickQuestions questions={feed.questions} />
             </div>
-          )}
-
-          {followingUp.length > 0 && (
-            <>
-              <SectionTitle
-                hint={sectionHint(
-                  <>
-                    Issues you favorited to keep tracking ·{" "}
-                    <Link className="text-accent hover:underline" href="/favorites">
-                      View all
-                    </Link>
-                  </>,
-                  followingUp.length,
-                  totals.followingUp,
-                )}
-              >
-                Following up
-              </SectionTitle>
-              <FeedList entries={toEntries(followingUp)} />
-            </>
-          )}
-
-          <SectionTitle hint={sectionHint("Matched to your issues, most relevant first", radar.length, totals.radar)}>On your radar</SectionTitle>
-          {radar.length ? (
-            <FeedList entries={toEntries(radar)} />
-          ) : level === "state" && !actNow.length && !followingUp.length ? (
-            <Empty>
-              No {profile.state ?? "state"} bills match your interests right now. Between legislative sessions, this shows laws signed
-              in the last four months.{" "}
-              <Link className="text-accent underline" href="/browse?level=state">Browse all state items</Link> or{" "}
-              <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
-            </Empty>
-          ) : level === "federal" && !actNow.length && !followingUp.length ? (
-            <Empty>
-              No federal bills or public comment periods match your interests right now.{" "}
-              <Link className="text-accent underline" href="/browse?level=federal">Browse all federal items</Link> or{" "}
-              <Link className="text-accent underline" href="/onboarding?step=3">edit interests</Link>.
-            </Empty>
-          ) : (
-            <Empty>
-              Nothing else matches yet. Try following more topics or adding a pet issue.{" "}
-              <Link className="text-accent underline" href="/onboarding?step=3">Edit interests</Link>
-            </Empty>
-          )}
-
-          {done.length > 0 && (
-            <>
-              <SectionTitle hint={sectionHint(undefined, done.length, totals.done)}>You took action</SectionTitle>
-              <ul className="space-y-2">
-                {done.map((r) => (
-                  <li key={r.item.id}>
-                    <ItemCard r={r} variant="compact" />
-                  </li>
-                ))}
-              </ul>
-            </>
           )}
         </div>
 

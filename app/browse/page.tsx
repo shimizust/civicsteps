@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Calendar, Clock, Search, X } from "lucide-react";
+import { Calendar, Clock, Loader2, Search, X } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { BROWSE_PAGE_SIZE, browseItems, getAreaProgress, getFavoriteIds, getFeed, getIndexCounts, getProfile, type BrowseRow } from "@/lib/data";
-import { areasFor } from "@/lib/coverage";
+import { areasFor, citySupportFor, formatList, summarizeCoverage } from "@/lib/coverageStatus";
+import { placeName } from "@/lib/place";
 import { feedStatus, type Feed, type FeedStatus } from "@/lib/relevance";
 import { TOPICS, TOPIC_SLUGS } from "@/lib/taxonomy";
 import { typeLabel } from "@/components/ItemCard";
@@ -67,6 +68,10 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   const pages = Math.ceil(total / BROWSE_PAGE_SIZE);
   const parentTopics = TOPICS.filter((t) => !t.parent);
   const hasFilters = Boolean(q || level || scope === "all" || topic || sort === "deadline");
+  const now = Date.now();
+  const place = placeName(profile.jurisdiction_ids, profile.state);
+  const citySupport = citySupportFor(profile.jurisdiction_ids);
+  const coverageSummary = summarizeCoverage(coverage, now);
 
   return (
     <div>
@@ -74,7 +79,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         Browse all items
       </PageTitle>
 
-      <LocalIndexProgress zip={profile.zip} areas={coverage} now={Date.now()} />
+      <LocalIndexProgress zip={profile.zip} place={place} citySupport={citySupport} areas={coverage} now={now} />
 
       <form action="/browse" className="flex gap-2" role="search">
         {level && <input type="hidden" name="level" value={level} />}
@@ -114,17 +119,26 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
           <nav className="inline-flex flex-wrap rounded-lg border border-line bg-card p-0.5" aria-label="Filter by level">
             {LEVELS.map((l) => {
               const active = (level ?? "all") === l;
+              const tabIndexing =
+                (l === "city" && coverageSummary.cityInProgress) || (l === "state" && coverageSummary.stateInProgress);
               return (
                 <Link
                   key={l}
                   href={href({ level: l === "all" ? undefined : l })}
                   aria-current={active ? "page" : undefined}
+                  title={tabIndexing ? "Indexing in progress" : undefined}
                   className={cx(
-                    "rounded-md px-3 py-1 text-sm capitalize transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm capitalize transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                     active ? "bg-accent font-medium text-white dark:text-paper" : "text-muted hover:text-ink",
                   )}
                 >
-                  {l === "all" ? "All levels" : l}
+                  <span>{l === "all" ? "All levels" : l}</span>
+                  {tabIndexing && (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                      <span className="sr-only">indexing in progress</span>
+                    </>
+                  )}
                 </Link>
               );
             })}
@@ -183,7 +197,30 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         </ul>
       ) : (
         <Empty>
-          Nothing indexed matches that{scope === "area" ? " in your area" : ""}.{" "}
+          {scope === "area" && !q && !topic && level === "city" && citySupport.supported && coverageSummary.cityPending ? (
+            coverageSummary.cityInProgress ? (
+              <>We&apos;re indexing recent {citySupport.name} council items right now — they&apos;ll appear here automatically.</>
+            ) : (
+              <>Recent {citySupport.name} council items are scheduled for the next indexing run.</>
+            )
+          ) : scope === "area" && !q && !topic && level === "city" && !citySupport.supported ? (
+            citySupport.place ? (
+              <>
+                City council agendas aren&apos;t connected for {citySupport.place} yet (currently{" "}
+                {formatList(citySupport.supportedCities)}).
+              </>
+            ) : (
+              <>This ZIP code isn&apos;t inside a covered city boundary, so no city council items apply here.</>
+            )
+          ) : scope === "area" && !q && !topic && level === "state" && coverageSummary.statePending ? (
+            coverageSummary.stateInProgress ? (
+              <>We&apos;re indexing recent {profile.state ?? "state"} bills right now — they&apos;ll appear here automatically.</>
+            ) : (
+              <>Recent {profile.state ?? "state"} bills are scheduled for the next indexing run.</>
+            )
+          ) : (
+            <>Nothing indexed matches that{scope === "area" ? " in your area" : ""}.</>
+          )}{" "}
           {scope === "area" && (
             <Link className="text-accent underline" href={href({ scope: "all" })}>
               Search everywhere

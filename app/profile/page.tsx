@@ -2,10 +2,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Bookmark, Flame, Star } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
-import { getAnswers, getFavoriteIds, getInterests, getProfile, getRegistry, getStats } from "@/lib/data";
+import { getAnswers, getAreaProgress, getFavoriteIds, getInterests, getProfile, getRegistry, getStats } from "@/lib/data";
+import { areasFor, citySupportFor } from "@/lib/coverageStatus";
+import { placeName } from "@/lib/place";
 import { factQuestion, PROFILE_PREFIX } from "@/lib/facts";
 import { DEMOGRAPHIC_QUESTIONS } from "@/lib/taxonomy";
 import { FactQuestion, ForgetAnswer } from "@/components/FactQuestion";
+import { LocalIndexProgress } from "@/components/LocalIndexProgress";
 import { BadgeIcon } from "@/components/BadgeIcon";
 import { POINTS } from "@/lib/gamification";
 import { Button, Card, Kicker, PageTitle, Pill, SectionTitle, cx } from "@/components/ui";
@@ -30,7 +33,10 @@ export default async function ProfilePage() {
     getAnswers(supabase, user.id),
     getFavoriteIds(supabase, user.id),
   ]);
-  const registry = await getRegistry(supabase, Object.keys(answers).filter((k) => !k.startsWith(PROFILE_PREFIX)));
+  const [registry, coverage] = await Promise.all([
+    getRegistry(supabase, Object.keys(answers).filter((k) => !k.startsWith(PROFILE_PREFIX))),
+    profile?.zip ? getAreaProgress(supabase, areasFor(profile.state, profile.jurisdiction_ids)) : Promise.resolve(null),
+  ]);
   const factAnswers = Object.entries(answers).flatMap(([key, value]) => {
     const f = registry.get(key);
     return f ? [{ f, value }] : [];
@@ -47,6 +53,16 @@ export default async function ProfilePage() {
   return (
     <div>
       <PageTitle sub={user.email}>Your civic profile</PageTitle>
+
+      {profile?.zip && (
+        <LocalIndexProgress
+          zip={profile.zip}
+          place={placeName(profile.jurisdiction_ids, profile.state)}
+          citySupport={citySupportFor(profile.jurisdiction_ids)}
+          areas={coverage}
+          now={Date.now()}
+        />
+      )}
 
       <Card>
         <div className="flex flex-wrap items-end justify-between gap-4">

@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { geocodeZip } from "@/lib/civic/geocode";
 import { resolveStateOfficials } from "@/lib/civic/resolve";
-import { areasFor, requestAreaCoverage } from "@/lib/coverage";
+import { areasFor, citySupportFor, requestAreaCoverage, type CitySupport } from "@/lib/coverage";
 import { placeName } from "@/lib/place";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
@@ -15,6 +15,7 @@ export type ZipResult =
       officials: number;
       stateLookup: "ok" | "skipped" | "failed";
       coverage: string[] | null;
+      citySupport: CitySupport;
     }
   | { ok: false; error: string };
 
@@ -77,5 +78,5 @@ export async function saveZip(input: string): Promise<ZipResult> {
     return null;
   });
   revalidatePath("/", "layout");
-  return { ok: true, zip, summary, officials, stateLookup, coverage };
+  return { ok: true, zip, summary, officials, stateLookup, coverage, citySupport: citySupportFor(jurisdictionIds) };
 }
