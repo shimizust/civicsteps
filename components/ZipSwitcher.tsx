@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ChevronDown, MapPin } from "lucide-react";
 import { saveZip } from "@/app/zip-actions";
 import { Button } from "@/components/ui";
@@ -9,7 +9,6 @@ type Location = { zip: string; place: string | null };
 
 export function ZipSwitcher({ active, saved }: { active: string | null; saved: Location[] }) {
   const pathname = usePathname();
-  const router = useRouter();
   const details = useRef<HTMLDetailsElement>(null);
   const summary = useRef<HTMLElement>(null);
   const [zip, setZip] = useState("");
@@ -32,16 +31,13 @@ export function ZipSwitcher({ active, saved }: { active: string | null; saved: L
           setError(result.error);
           return;
         }
-        if (window.location.pathname === "/browse") {
-          const params = new URLSearchParams(window.location.search);
-          if (params.has("page")) {
-            params.delete("page");
-            router.replace(params.size ? `/browse?${params}` : "/browse");
-          }
+        const url = new URL(window.location.href);
+        if (url.pathname === "/browse" && url.searchParams.has("page")) {
+          url.searchParams.delete("page");
+          window.location.replace(url);
+        } else {
+          window.location.reload();
         }
-        router.refresh();
-        setZip("");
-        close();
       } catch {
         setError("Couldn't set your active ZIP code. Try again in a moment.");
       }
