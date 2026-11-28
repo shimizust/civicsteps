@@ -69,6 +69,12 @@ npm run facts:report                             # which learned facts come up m
 npm run ingest -- --only=openstates,legistar,locations,analyze --new-areas-only --wait   # backfill states new users just joined from
 ```
 
+### Advocacy campaigns
+
+Browse → Explore advocacy campaigns lists organizations by topic. The directory maps organizations to issues in `lib/advocacy-organizations.json`. Item pages match identified bills, agenda records, and rulemaking documents to organization sources. Topic links appear separately from positions on a particular item.
+
+After applying the database migrations, run `npm run campaigns:refresh` to refresh the sources and check every indexed item. The campaign workflow runs daily at 10:45 UTC on the default branch using the same Supabase secrets as nightly ingestion. It publishes one snapshot after the scan completes. Each source retains its last successful check date when a retry fails. The app can use the bundled source review before the first hosted refresh.
+
 ### New areas are ingested on demand
 
 State bills are fetched for states where users live, and council items come from the cities in `ingest/legistar.config.ts`. Saving a ZIP in an uncovered area queues its initial index in `ingest_coverage`. The worker backfills recent legislative activity and laws signed in the past 120 days, then prioritizes analysis for those areas. The civic feed automatically refreshes while indexing is pending and shows progress for each supported source.

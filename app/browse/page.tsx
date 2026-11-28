@@ -79,6 +79,8 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         Browse all items
       </PageTitle>
 
+      <Link href="/campaigns" className="mb-4 inline-block text-sm font-medium text-accent underline">Explore advocacy campaigns →</Link>
+
       <LocalIndexProgress zip={profile.zip} place={place} citySupport={citySupport} areas={coverage} now={now} />
 
       <form action="/browse" className="flex gap-2" role="search">

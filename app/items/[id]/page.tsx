@@ -20,18 +20,23 @@ import { ActionPanel, MarkRead } from "@/components/ActionPanel";
 import { OfficialCard } from "@/components/OfficialCard";
 import { RelevanceVote } from "@/components/RelevanceVote";
 import { FavoriteButton, MarkFavoriteSeen } from "@/components/FavoriteButton";
+import { alertsForItem, organizationsForTopic, reviewDate, stateLabel } from "@/lib/advocacy";
+import { getCampaignData } from "@/lib/campaignData";
+import { topicName } from "@/lib/taxonomy";
+import { campaignsForItem } from "@/lib/campaigns";
+import { CampaignIssueCard } from "@/components/CampaignIssueCard";
 import { IssueSummary } from "@/components/IssueSummary";
 import { ItemMap } from "@/components/ItemMap";
 import { formatMiles, milesBetween } from "@/lib/locations";
 import { placeName } from "@/lib/place";
-import { Card, Kicker, LEVEL_LABEL, LinkButton, Pill, deadlineLabel } from "@/components/ui";
+import { Card, SectionTitle, Kicker, LEVEL_LABEL, LinkButton, Pill, deadlineLabel } from "@/components/ui";
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await requireUser();
   if (!user) redirect(`/login?next=/items/${id}`);
 
-  const [item, mine, ctx, myActions, myVote, myFavorite] = await Promise.all([
+  const [item, mine, ctx, myActions, myVote, myFavorite, { snapshot }] = await Promise.all([
     getItem(supabase, id),
     getMyOfficials(supabase, user.id),
     getUserContext(supabase, user.id),
@@ -45,11 +50,18 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
       .eq("user_id", user.id)
       .eq("item_id", id)
       .maybeSingle(),
+    getCampaignData(supabase),
   ]);
   if (!item) notFound();
   const favorite = myFavorite.data;
   const favUpdate = favorite ? favoriteUpdate(item, favorite) : null;
   const a = item.item_analysis;
+  const campaigns = campaignsForItem(item.source, item.external_id, a?.topics ?? []);
+  const topicGroups = new Set((a?.topics ?? []).flatMap(organizationsForTopic));
+  const directUrls = new Set(campaigns.direct.flatMap((issue) => issue.campaigns.map((c) => c.url)));
+  const alerts = alertsForItem(snapshot, item).filter((alert) => !directUrls.has(alert.url));
+  const checked = snapshot.filter((source) => source.checked === source.attempted);
+  const latest = checked.map((s) => s.attempted).sort().at(-1);
   const analysis = a as unknown as FeedAnalysis | null;
   const matches = analysis ? matchInterests({ item, analysis }, ctx.interests) : [];
   const place = placeName(ctx.profile?.jurisdiction_ids ?? [], ctx.profile?.state ?? null);
@@ -164,6 +176,49 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
       <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start lg:gap-8">
         {/* Left main column: What is this? -> How does it affect me? -> Where? */}
         <div className="min-w-0 space-y-6">
+      <section>
+        <SectionTitle>Advocacy on this item</SectionTitle>
+        <Card>
+          {!campaigns.direct.length && !alerts.length && <p>No campaign or published position for this exact item was found in the sources checked.</p>}
+          {!!alerts.length && <ul className="mb-2 space-y-2">{alerts.map((alert) => (
+            <li key={alert.organization + alert.url}>
+              <strong>{alert.organization}</strong> {alert.position ? alert.position.toLowerCase() + " this item." : "references this item."}{" "}
+              <a className="text-accent underline" target="_blank" rel="noreferrer" href={alert.url}>{alert.title}</a>
+              <span className="block text-xs text-muted">{stateLabel[alert.state]}{alert.checked && " · " + reviewDate(alert.checked)}</span>
+            </li>
+          ))}</ul>}
+          <p className="mt-1 text-xs text-muted">
+            {latest ? `Source review ${reviewDate(latest)} · ${checked.length} of ${snapshot.length} directories reached.` : "Directory checks pending."}
+          </p>
+          {!!topicGroups.size && <details className="mt-3 text-sm">
+            <summary className="cursor-pointer font-medium">Organizations working on related topics ({topicGroups.size})</summary>
+            <ul className="mt-2 space-y-1">
+              {[...topicGroups].map((org) => <li key={org.url}>
+                <a href={org.url} className="text-accent underline" target="_blank" rel="noreferrer">{org.name} ↗</a>
+              </li>)}
+            </ul>
+          </details>}
+          <div className="mt-3 flex flex-wrap gap-3 text-sm text-accent underline">
+            {(a?.topics ?? []).map((slug) => <Link key={slug} href={`/campaigns?topic=${encodeURIComponent(slug)}`}>Groups on {topicName(slug)}</Link>)}
+            <Link href="/campaigns">All campaign sources</Link>
+          </div>
+        </Card>
+      </section>
+      {campaigns.direct.length > 0 && (
+        <section>
+          <SectionTitle>Who’s campaigning on this bill?</SectionTitle>
+          {campaigns.direct.map((issue) => <CampaignIssueCard key={issue.title} issue={issue} snapshot={snapshot} />)}
+        </section>
+      )}
+      {campaigns.related.length > 0 && (
+        <section>
+          <SectionTitle>Campaigns on related bills</SectionTitle>
+          <div className="space-y-3">
+            {campaigns.related.map((issue) => <CampaignIssueCard key={issue.title} issue={issue} snapshot={snapshot} />)}
+          </div>
+        </section>
+      )}
+
           <IssueSummary
             analysis={a}
             description={item.description}

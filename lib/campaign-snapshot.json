@@ -1,0 +1,972 @@
+[
+  {
+    "organization": "Access Fund",
+    "attempted": "2026-11-28T02:34:15.591Z",
+    "checked": "2026-11-28T02:34:15.591Z",
+    "alerts": [
+      {
+        "url": "https://www.accessfund.org/action-alerts/fix-baaja",
+        "title": "Action Alert: Tell Congress to Fix BAAJA and Protect Climbing",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.591Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.accessfund.org/action-alerts/improve-climbing-access-at-tallulah-gorge",
+        "title": "Improve Climbing Access at Tallulah Gorge",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.591Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.accessfund.org/action-alerts/protect-bear-ears-utah",
+        "title": "Protect Bear Ears, Utah",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.591Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.accessfund.org/action-alerts/williamson-rock",
+        "title": "Williamson Rock",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.591Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.accessfund.org/action-alerts/save-oak-flat",
+        "title": "Save Oak Flat",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.591Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.accessfund.org/action-alerts/take-the-climbing-advocate-pledge",
+        "title": "Take the Climbing Advocate Pledge",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.591Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "National Parks Conservation Association",
+    "attempted": "2026-11-28T02:34:15.601Z",
+    "checked": "2026-11-28T02:34:15.601Z",
+    "alerts": [
+      {
+        "url": "https://support.npca.org/page/92911/petition/1?ea.tracking.id=ActionCenter",
+        "title": "United in Action. United by Parks. | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/103836/action/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2610D4ADW",
+        "title": "Join Veterans to Stop the Arch | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/102592/action/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2609D3ADW",
+        "title": "Support the America the Beautiful Act | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/102077/action/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2608D8ADW",
+        "title": "Yosemite is not for sale | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/101773/action/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2608D6ADW",
+        "title": "Stand With Park Staff | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/101776/petition/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2608D7ADW",
+        "title": "Help Protect Mojave Desert Water | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/101439/action/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2608D2ADW",
+        "title": "Stop Bulldozing in Big Bend. | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/98703/action/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2605D5ADW",
+        "title": "Protect Arizona Landscapes | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://support.npca.org/page/96166/petition/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2604D2ADW",
+        "title": "Stop Inappropriate Hunting in Our Parks | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/95811/action/1?ea.tracking.id=ActionCenter&supporter.appealCode=ALA2603D3ADS",
+        "title": "Wildlife Deserve Safe Passage | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/85667/action/1",
+        "title": "Secretary Burgum must protect our monuments. | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/84210/action/1",
+        "title": "Secretary Burgum must protect our monuments. | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/83595/action/1?ea.tracking.id=HistCltrAction",
+        "title": "These are the stories our national parks MUST tell. | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/62134/action/1",
+        "title": "Congress: Our parks are worth fighting for! | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.npca.org/page/72824/action/1",
+        "title": "Support the Wildlife Movement Through Partnerships Act | National Parks Conservation Association",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.601Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "The Wilderness Society",
+    "attempted": "2026-11-28T02:34:15.601Z",
+    "checked": "2026-11-28T02:34:15.601Z",
+    "alerts": []
+  },
+  {
+    "organization": "Sierra Club",
+    "attempted": "2026-11-28T02:34:15.601Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "American Rivers",
+    "attempted": "2026-11-28T02:34:15.602Z",
+    "checked": "2026-11-28T02:34:15.602Z",
+    "alerts": [
+      {
+        "url": "https://act.americanrivers.org/page/96565/action/1?ea.tracking.id=ACpromo",
+        "title": "Take action for the San Joaquin River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96623/action/1?ea.tracking.id=ACpromo",
+        "title": "Protect the Boundary Waters | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96625/action/1?ea.tracking.id=ACpromo",
+        "title": "Protect the Lumber River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96626/action/1?ea.tracking.id=ACpromo",
+        "title": "Take action for the Rogue River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96631/action/1?ea.tracking.id=ACpromo",
+        "title": "Protect the Chilkat River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96633/action/1?ea.tracking.id=ACpromo",
+        "title": "Protect the Nissequogue River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96634/action/1?ea.tracking.id=ACpromo",
+        "title": "Take action for the Dan River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96636/action/1?ea.tracking.id=MERms",
+        "title": "Protect the Amargosa River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.americanrivers.org/page/96638/action/1?ea.tracking.id=ACpromo",
+        "title": "Protect the Suwannee River | American Rivers",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "Defenders of Wildlife",
+    "attempted": "2026-11-28T02:34:15.602Z",
+    "checked": "2026-11-28T02:34:15.602Z",
+    "alerts": [
+      {
+        "url": "https://act.defenders.org/page/105251/action/1?ea.tracking.id=web_action-listing",
+        "title": "Take Action for Wildlife: Tell your Representative to oppose BAAJA!",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.defenders.org/page/98830/action/1?ea.tracking.id=web_action-listing",
+        "title": "Save Wildlife From Extinction",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "National Low Income Housing Coalition",
+    "attempted": "2026-11-28T02:34:15.602Z",
+    "checked": "2026-11-28T02:34:15.602Z",
+    "alerts": [
+      {
+        "url": "https://nlihc.quorum.us/campaign/157066/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/81477/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://p2a.co/quyh2lz",
+        "title": "ADD YOUR ORGANIZATION'S NAME TO OUR LETTER!",
+        "references": [],
+        "checked": null,
+        "state": "unverified"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/81483/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://p2a.co/d7ljfgz",
+        "title": "CONTACT YOUR MEMBERS OF CONGRESS!",
+        "references": [],
+        "checked": null,
+        "state": "unverified"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/108105/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/81482/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/143394/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/81461/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/81449/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://nlihc.quorum.us/campaign/81450/",
+        "title": "National Low Income Housing Coalition | Advocacy Hub",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://nlihc.org/resource/take-action-tell-congress-enact-bipartisan-family-stability-and-opportunity-vouchers-act",
+        "title": "Take Action! Tell Congress to Enact the Bipartisan “Family Stability and Opportunity Vouchers Act”",
+        "references": [],
+        "checked": "2026-11-28T02:34:15.602Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "YIMBY Action",
+    "attempted": "2026-11-28T02:34:15.602Z",
+    "checked": "2026-11-28T02:34:15.602Z",
+    "alerts": []
+  },
+  {
+    "organization": "National Taxpayers Union",
+    "attempted": "2026-11-28T02:34:21.962Z",
+    "checked": "2026-11-28T02:34:21.962Z",
+    "alerts": []
+  },
+  {
+    "organization": "League of American Bicyclists",
+    "attempted": "2026-11-28T02:34:21.962Z",
+    "checked": "2026-11-28T02:34:21.962Z",
+    "alerts": []
+  },
+  {
+    "organization": "Transportation for America",
+    "attempted": "2026-11-28T02:34:21.962Z",
+    "checked": "2026-11-28T02:34:21.962Z",
+    "alerts": []
+  },
+  {
+    "organization": "AFL-CIO",
+    "attempted": "2026-11-28T02:34:21.962Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "National Federation of Independent Business",
+    "attempted": "2026-11-28T02:34:21.963Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "Public Citizen",
+    "attempted": "2026-11-28T02:34:21.963Z",
+    "checked": "2026-11-28T02:34:21.963Z",
+    "alerts": []
+  },
+  {
+    "organization": "Families USA",
+    "attempted": "2026-11-28T02:34:21.963Z",
+    "checked": "2026-11-28T02:34:21.963Z",
+    "alerts": [
+      {
+        "url": "https://secure.everyaction.com/Xfqpj14zSkSgSWvzFiCv_g2",
+        "title": "Tell Congress: Uphold your promise and protect Medicaid!",
+        "references": [],
+        "checked": "2026-11-28T02:34:21.963Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://secure.everyaction.com/P0GZNt6ePEubR_aOVK5efQ2",
+        "title": "Sign up for the Health Action Network",
+        "references": [],
+        "checked": "2026-11-28T02:34:21.963Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "National Alliance on Mental Illness",
+    "attempted": "2026-11-28T02:34:21.963Z",
+    "checked": "2026-11-28T02:34:21.963Z",
+    "alerts": [
+      {
+        "url": "https://act.nami.org/campaign/40619/",
+        "title": "NAMI | Advocacy Headquarters",
+        "references": [],
+        "checked": "2026-11-28T02:34:21.963Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "Reproductive Freedom for All",
+    "attempted": "2026-11-28T02:34:23.663Z",
+    "checked": "2026-11-28T02:34:23.663Z",
+    "alerts": [
+      {
+        "url": "https://reproductivefreedomforall.org/actions/social-share-my-body-my-ballot/",
+        "title": "Social Share: My Body. My Ballot. - Reproductive Freedom for All®",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.663Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://action.reproductivefreedomforall.org/a/reject-dhs-bill?ms=web_advo_fdlg_20260210takeactionpage",
+        "title": "Tell your lawmakers to end ICE violence | Reproductive Freedom For All",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.663Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "National Education Association",
+    "attempted": "2026-11-28T02:34:23.664Z",
+    "checked": "2026-11-28T02:34:23.664Z",
+    "alerts": []
+  },
+  {
+    "organization": "Child Care Aware of America",
+    "attempted": "2026-11-28T02:34:23.665Z",
+    "checked": "2026-11-28T02:34:23.665Z",
+    "alerts": []
+  },
+  {
+    "organization": "American Civil Liberties Union",
+    "attempted": "2026-11-28T02:34:23.665Z",
+    "checked": "2026-11-28T02:34:23.665Z",
+    "alerts": [
+      {
+        "url": "https://action.aclu.org/send-message/unrig-the-system",
+        "title": "Tell Congress: Voters demand change",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.665Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://action.aclu.org/send-message/end-federal-death-penalty",
+        "title": "End the Federal Death Penalty",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.665Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://action.aclu.org/send-message/dignity-for-detained-immigrants-act",
+        "title": "End Mandatory Detention in ICE Custody",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.665Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://action.aclu.org/send-message/stop-ices-killings",
+        "title": "Stop ICE's Killings",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.665Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://action.aclu.org/send-message/stop-abuse-power-stop-unlawful-arrests-public-officials",
+        "title": "Stop the Abuse of Power. Stop Unfounded Arrests of Public Officials.",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.665Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://action.aclu.org/send-message/get-flock-out",
+        "title": "Get the Flock Out",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.665Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://action.aclu.org/send-message/stop-anti-voter-bills-now/",
+        "title": "Stop Anti-Voter Bills Now",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.665Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "Heritage Action for America",
+    "attempted": "2026-11-28T02:34:23.666Z",
+    "checked": "2026-11-28T02:34:23.666Z",
+    "alerts": [
+      {
+        "url": "https://heritageaction.com/saveamericaact",
+        "title": "Urge Congress to Pass the SAVE America Act | Heritage Action",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.666Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://heritageaction.com/congress-give-america-a-budget-win-with-reconciliation-3-0",
+        "title": "Urge Congress to Deliver Americans a Win with… | Heritage Action",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.666Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://heritageaction.com/action/save-our-elections",
+        "title": "SAVE our elections",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.666Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "Everytown for Gun Safety",
+    "attempted": "2026-11-28T02:34:23.666Z",
+    "checked": "2026-11-28T02:34:23.666Z",
+    "alerts": [
+      {
+        "url": "https://act.everytown.org/sign/CCM-25/",
+        "title": "Everytown for Gun Safety",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.666Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://act.everytown.org/sign/ffla-2025/?source=etno_20250403-home",
+        "title": "Everytown for Gun Safety",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.666Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://secure.everyaction.com/rK6CiSHKqUSRjhBGoIT5BQ2?source=etno_act_page",
+        "title": "Join a Gun Sense Action Network Call Team!",
+        "references": [],
+        "checked": "2026-11-28T02:34:23.666Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "International Association of Fire Fighters",
+    "attempted": "2026-11-28T02:34:23.667Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "Electronic Frontier Foundation",
+    "attempted": "2026-11-28T02:34:23.668Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "League of Women Voters",
+    "attempted": "2026-11-28T02:34:25.249Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "AARP",
+    "attempted": "2026-11-28T02:34:25.250Z",
+    "checked": "2026-11-28T02:34:25.250Z",
+    "alerts": []
+  },
+  {
+    "organization": "Feeding America",
+    "attempted": "2026-11-28T02:34:25.251Z",
+    "checked": "2026-11-28T02:34:25.251Z",
+    "alerts": []
+  },
+  {
+    "organization": "MomsRising",
+    "attempted": "2026-11-28T02:34:25.251Z",
+    "checked": "2026-11-28T02:34:25.251Z",
+    "alerts": [
+      {
+        "url": "https://www.momsrising.org/campaigns/workplace-justice",
+        "title": "Workplace Justice",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/equal-pay",
+        "title": "Realistic & Fair Wages",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/paid-family-medical-leave",
+        "title": "Paid Family & Medical Leave",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/paid-sick-days",
+        "title": "Paid Sick Days",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/breastfeeding",
+        "title": "Breastfeeding",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/youth-family-justice",
+        "title": "Youth & Family Justice",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/school-to-prison-pipeline",
+        "title": "Ending the School-to-Prison Pipeline",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/maternal-health",
+        "title": "Maternal Justice",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/early-care-education",
+        "title": "Early Care & Education",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/federal-budget",
+        "title": "Federal Budget",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/momsvote",
+        "title": "MomsVote / LatinasVotan",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaign/latinasvotan",
+        "title": "LatinasVotan / MomsVote",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/gun-control",
+        "title": "Gun Control",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/health-care",
+        "title": "Health Care",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/immigration",
+        "title": "Immigration",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/keepmarching",
+        "title": "#KeepMarching",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.momsrising.org/campaigns/state-moms-forces",
+        "title": "State Moms Forces",
+        "references": [],
+        "checked": "2026-11-28T02:34:25.251Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "Veterans of Foreign Wars",
+    "attempted": "2026-11-28T02:34:25.252Z",
+    "checked": "2026-11-28T02:34:25.252Z",
+    "alerts": []
+  },
+  {
+    "organization": "National Farmers Union",
+    "attempted": "2026-11-28T02:34:25.252Z",
+    "checked": "2026-11-28T02:34:25.252Z",
+    "alerts": []
+  },
+  {
+    "organization": "San Francisco Bicycle Coalition",
+    "attempted": "2026-11-28T02:34:25.253Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "Environment California",
+    "attempted": "2026-11-28T02:34:25.254Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "California YIMBY",
+    "attempted": "2026-11-28T02:34:26.399Z",
+    "checked": "2026-11-28T02:34:26.399Z",
+    "alerts": [
+      {
+        "url": "https://cayimby.org/legislation/ab-1903/",
+        "title": "AB 1903",
+        "references": [
+          "openstates/ca/bills/20252026/ab1903"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://cayimby.org/legislation/ab-2074/",
+        "title": "AB 2074",
+        "references": [
+          "openstates/ca/bills/20252026/ab2074"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://cayimby.org/legislation/sb-1117/",
+        "title": "SB 1117",
+        "references": [
+          "openstates/ca/bills/20252026/sb1117"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://cayimby.org/legislation/sb-1116/",
+        "title": "SB 1116",
+        "references": [
+          "openstates/ca/bills/20252026/sb1116"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://cayimby.org/legislation/sb-1014/",
+        "title": "SB 1014",
+        "references": [
+          "openstates/ca/bills/20252026/sb1014"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://cayimby.org/legislation/ab-956/",
+        "title": "AB 956",
+        "references": [
+          "openstates/ca/bills/20252026/ab956"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://cayimby.org/legislation/ab-1070/",
+        "title": "AB 1070",
+        "references": [
+          "openstates/ca/bills/20252026/ab1070"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://cayimby.org/legislation/sb-677/",
+        "title": "SB 677",
+        "references": [
+          "openstates/ca/bills/20252026/sb677"
+        ],
+        "checked": "2026-11-28T02:34:26.399Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "Walk San Francisco",
+    "attempted": "2026-11-28T02:34:26.400Z",
+    "checked": "2026-11-28T02:34:26.400Z",
+    "alerts": [
+      {
+        "url": "https://actionnetwork.org/letters/protect-40-million-in-street-safety-capital-funding",
+        "title": "Email the Board",
+        "references": [],
+        "checked": "2026-11-28T02:34:26.400Z",
+        "state": "unlisted"
+      },
+      {
+        "url": "https://actionnetwork.org/letters/ask-city-leaders-to-act-now-to-pursue-expanding-san-franciscos-speed-camera-program",
+        "title": "Ask City Leaders to Act Now to Pursue Expanding San Francisco’s Speed Camera Program - Action Network",
+        "references": [],
+        "checked": "2026-11-28T02:34:26.400Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://walksf.org/get-involved/take-action/daylighting/",
+        "title": "Do you love safe intersections?",
+        "references": [],
+        "checked": "2026-11-28T02:34:26.400Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://walksf.org/get-involved/take-action/safestreets/",
+        "title": "Tell City leaders: We need safe streets",
+        "references": [],
+        "checked": "2026-11-28T02:34:26.400Z",
+        "state": "listed"
+      }
+    ]
+  },
+  {
+    "organization": "ACLU California Action",
+    "attempted": "2026-11-28T02:34:26.401Z",
+    "checked": null,
+    "alerts": []
+  },
+  {
+    "organization": "Seattle Streets Alliance",
+    "attempted": "2026-11-28T02:34:26.401Z",
+    "checked": "2026-11-28T02:34:26.401Z",
+    "alerts": []
+  },
+  {
+    "organization": "California State Association of Counties",
+    "attempted": "2026-11-28T02:34:26.402Z",
+    "checked": "2026-11-28T02:34:26.402Z",
+    "alerts": [
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=AB%201621%20(Wilson)",
+        "position": "Opposed",
+        "title": "Opposed AB 1621 (Wilson) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/ab1621"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=SB%20299%20(Cabaldon)",
+        "position": "Supported",
+        "title": "Supported SB 299 (Cabaldon) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/sb299"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=SB%20716%20(Durazo)",
+        "position": "Supported",
+        "title": "Supported SB 716 (Durazo) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/sb716"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=SB%201272%20(Menjivar)",
+        "position": "Opposed",
+        "title": "Opposed SB 1272 (Menjivar) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/sb1272"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=AB%20179%20(Committee%20on%20Budget)",
+        "position": "Opposed",
+        "title": "Opposed AB 179 (Committee on Budget) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/ab179"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=AB%202320%20(Ta)",
+        "position": "Supported",
+        "title": "Supported AB 2320 (Ta) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/ab2320"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=AB%201198%20(Haney)",
+        "position": "Opposed",
+        "title": "Opposed AB 1198 (Haney) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/ab1198"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      },
+      {
+        "url": "https://www.counties.org/news-and-media-article/2026-legislative-session-key-developments-in-housing-land-use-and-transportation-policy-area/#:~:text=SB%20935%20(Choi)",
+        "position": "Supported",
+        "title": "Supported SB 935 (Choi) · Published position",
+        "references": [
+          "openstates/ca/bills/20252026/sb935"
+        ],
+        "checked": "2026-11-28T02:34:26.402Z",
+        "state": "listed"
+      }
+    ]
+  }
+]

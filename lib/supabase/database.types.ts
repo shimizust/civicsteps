@@ -23,6 +23,12 @@ export type Database = {
           }
         },"public": {
           Tables: {
+            campaign_snapshot: {
+              Row: { id: number; sources: Json; items_checked: number; items_matched: number; checked_at: string }
+              Insert: { id: number; sources: Json; items_checked: number; items_matched: number; checked_at?: string }
+              Update: { id?: number; sources?: Json; items_checked?: number; items_matched?: number; checked_at?: string }
+              Relationships: []
+            }
             "badges": {
                   Row: {
                     "description": string,"icon": string,"name": string,"slug": string
