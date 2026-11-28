@@ -59,7 +59,14 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const campaigns = campaignsForItem(item.source, item.external_id, a?.topics ?? []);
   const topicGroups = new Set((a?.topics ?? []).flatMap(organizationsForTopic));
   const directUrls = new Set(campaigns.direct.flatMap((issue) => issue.campaigns.map((c) => c.url)));
-  const alerts = alertsForItem(snapshot, item).filter((alert) => !directUrls.has(alert.url));
+  const alerts = alertsForItem(snapshot, {
+    url: item.url,
+    action_url: item.action_url,
+    title: item.title,
+    source: item.source,
+    external_id: item.external_id,
+    state: item.state,
+  }).filter((alert) => !directUrls.has(alert.url));
   const checked = snapshot.filter((source) => source.checked === source.attempted);
   const latest = checked.map((s) => s.attempted).sort().at(-1);
   const analysis = a as unknown as FeedAnalysis | null;

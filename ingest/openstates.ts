@@ -106,3 +106,21 @@ export async function fetchStateBills(
   }
   return out;
 }
+
+/** Fetches a single state bill directly without recency filtering (used for campaign-referenced bills). */
+export async function fetchStateBillByKey(state: string, session: string, identifier: string): Promise<NormalizedItem | null> {
+  const key = process.env.OPENSTATES_API_KEY;
+  if (!key) return null;
+  const u = new URL("https://v3.openstates.org/bills");
+  u.searchParams.set("jurisdiction", `ocd-jurisdiction/country:us/state:${state.toLowerCase()}/government`);
+  u.searchParams.set("session", session);
+  u.searchParams.set("identifier", identifier);
+  u.searchParams.set("per_page", "5");
+  u.searchParams.append("include", "sponsorships");
+  u.searchParams.append("include", "abstracts");
+  u.searchParams.append("include", "actions");
+  const data = await getJson<{ results: OSBill[] }>(u, { headers: { "X-API-KEY": key } });
+  const norm = identifier.replace(/\s+/g, "").toLowerCase();
+  const match = data.results.find((b) => b.identifier.replace(/\s+/g, "").toLowerCase() === norm) ?? data.results[0];
+  return match ? normalizeOpenStatesBill(match, state) : null;
+}
