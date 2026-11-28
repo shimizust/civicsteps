@@ -1,3 +1,5 @@
+import { expandTopics, topicParent } from "./taxonomy";
+
 export type CampaignIssue = {
   title: string;
   topics: string[];
@@ -48,7 +50,12 @@ export const campaignIssues: CampaignIssue[] = [
 ];
 
 export function campaignsForItem(source: string, externalId: string, topics: string[]) {
+  const expanded = expandTopics(topics);
   const direct = campaignIssues.filter((issue) => source === "congress" && issue.congressIds.includes(externalId));
-  const related = campaignIssues.filter((issue) => !direct.includes(issue) && issue.topics.some((topic) => topics.includes(topic)));
+  const related = campaignIssues.filter(
+    (issue) =>
+      !direct.includes(issue) &&
+      issue.topics.some((topic) => expanded.includes(topic) || expanded.includes(topicParent(topic))),
+  );
   return { direct, related };
 }

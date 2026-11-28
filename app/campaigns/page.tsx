@@ -47,7 +47,22 @@ export default async function CampaignsPage({ searchParams }: { searchParams: Pr
               {!!source?.alerts.length && <details className="mt-2 text-sm">
                 <summary className="cursor-pointer">Campaigns and positions ({source.alerts.length})</summary>
                 <ul className="mt-2 space-y-2">
-                  {source.alerts.map((a) => <li key={a.url}><a className="text-accent underline" href={a.url} target="_blank" rel="noreferrer">{a.title}</a><span className="block text-xs text-muted">{stateLabel[a.state]}</span></li>)}
+                  {source.alerts.map((a) => (
+                    <li key={a.url}>
+                      <a className="text-accent underline" href={a.url} target="_blank" rel="noreferrer">{a.title}</a>
+                      <span className="block text-xs text-muted">{stateLabel[a.state]}</span>
+                      {!!a.matchedItems?.length && (
+                        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs">
+                          <span className="text-muted">Tracked in CivicSteps:</span>
+                          {a.matchedItems.map((m) => (
+                            <Link key={m.id} href={`/items/${m.id}`} className="text-accent underline">
+                              {m.title}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  ))}
                 </ul>
               </details>}
             </Card>

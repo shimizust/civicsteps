@@ -46,8 +46,8 @@ export function normalizeCongressBill(b: CGBill, extra?: { summary?: string | nu
     action_url: congressBillUrl(b),
     agency: b.originChamber ? `U.S. ${b.originChamber}` : "U.S. Congress",
     status: b.latestAction?.text ? truncate(b.latestAction.text, 300) : null,
-    introduced_at: b.introducedDate ?? null,
-    last_action_at: b.latestAction?.actionDate ?? b.updateDate,
+    introduced_at: b.introducedDate?.slice(0, 10) ?? null,
+    last_action_at: b.latestAction?.actionDate ?? b.updateDate.slice(0, 10),
     last_action: b.latestAction?.text ?? null,
     comment_deadline: null,
     officials: (extra?.sponsors ?? []).map((id) => ({ official_id: `bioguide:${id}`, role: "sponsor" as const })),
@@ -113,4 +113,28 @@ export async function fetchBillDetail(b: CGBill): Promise<{ summary: string | nu
     summary: stripHtml(latest?.text),
     sponsors: (detail.bill.sponsors ?? []).map((s) => s.bioguideId),
   };
+}
+
+/** Fetches a single current- or prior-Congress bill directly by ID (used for campaign-referenced bills). */
+export async function fetchCongressBillById(congress: number, type: string, number: string): Promise<NormalizedItem | null> {
+  const base = `/bill/${congress}/${type.toLowerCase()}/${number}`;
+  const res = await fetch(api(base), { signal: AbortSignal.timeout(9000) });
+  if (res.status === 404) {
+    await res.body?.cancel();
+    return null;
+  }
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new Error(`${res.status} ${res.statusText} from ${base}`);
+  }
+  const detail = (await res.json()) as { bill?: CGBill & { sponsors?: { bioguideId: string }[] } };
+  if (!detail.bill) return null;
+  const summaries = await getJson<{ summaries?: { text: string; updateDate: string }[] }>(api(`${base}/summaries`)).catch(
+    () => ({ summaries: [] }),
+  );
+  const latest = (summaries.summaries ?? []).sort((x, y) => y.updateDate.localeCompare(x.updateDate))[0];
+  return normalizeCongressBill(detail.bill, {
+    summary: stripHtml(latest?.text),
+    sponsors: (detail.bill.sponsors ?? []).map((s) => s.bioguideId).filter(Boolean),
+  });
 }
