@@ -68,6 +68,51 @@ export function isPhaseInProgress(phase: AreaPhase): boolean {
   return phase === "queued" || phase === "fetching" || phase === "analyzing";
 }
 
+export const INDEX_STAGES = ["Queued", "Fetching", "Analyzing", "Ready"] as const;
+
+export function areaStageIndex(phase: AreaPhase): 0 | 1 | 2 | 3 {
+  switch (phase) {
+    case "ready":
+      return 3;
+    case "analyzing":
+      return 2;
+    case "fetching":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+export function areaProgressPercent(
+  area: Pick<AreaProgressRow, "items_found" | "items_analyzed" | "items_failed">,
+  phase: AreaPhase,
+): number {
+  switch (phase) {
+    case "ready":
+      return 100;
+    case "retry":
+      return 0;
+    case "queued":
+      return 10;
+    case "fetching":
+      return area.items_found && area.items_found > 0 ? 30 : 22;
+    case "analyzing": {
+      const found = area.items_found ?? 0;
+      if (found <= 0) return 35;
+      const done = Math.min(found, (area.items_analyzed ?? 0) + (area.items_failed ?? 0));
+      return Math.min(99, 35 + Math.round((done / found) * 64));
+    }
+  }
+}
+
+export function overallProgressPercent(
+  rows: { area: Pick<AreaProgressRow, "items_found" | "items_analyzed" | "items_failed">; phase: AreaPhase }[],
+): number {
+  if (!rows.length) return 100;
+  const total = rows.reduce((sum, row) => sum + areaProgressPercent(row.area, row.phase), 0);
+  return Math.round(total / rows.length);
+}
+
 export function areaPhaseDetail(
   area: Pick<AreaProgressRow, "items_found" | "items_analyzed" | "items_failed">,
   phase: AreaPhase,
@@ -84,12 +129,33 @@ export function areaPhaseDetail(
     case "analyzing":
       return found ? `Analyzing · ${analyzed} of ${found} ready` : "Preparing items for analysis";
     case "fetching":
-      return "Fetching recent items…";
+      return found ? `Fetching recent items · ${found} found` : "Fetching recent items…";
     case "retry":
       return "Scheduled for the next indexing run";
     default:
       return "Starting indexing…";
   }
+}
+
+export type ProgressSummary = {
+  label: string;
+  detail: string;
+  percent: number;
+  inProgress: boolean;
+};
+
+export function formatProgressSummary(
+  rows: { area: AreaProgressRow; phase: AreaPhase }[] | null,
+): ProgressSummary | null {
+  if (!rows?.length) return null;
+  const activeRow = rows.find(({ phase }) => isPhaseInProgress(phase)) ?? rows.find(({ phase }) => phase !== "ready");
+  if (!activeRow) return null;
+  return {
+    label: activeRow.area.label,
+    detail: areaPhaseDetail(activeRow.area, activeRow.phase),
+    percent: areaProgressPercent(activeRow.area, activeRow.phase),
+    inProgress: isPhaseInProgress(activeRow.phase),
+  };
 }
 
 export function summarizeCoverage(areas: AreaProgressRow[] | null, now: number) {

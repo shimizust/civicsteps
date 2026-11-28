@@ -199,10 +199,15 @@ async function markCoverage(scope: string, patch: CoveragePatch) {
   if (error) throw error;
 }
 
-async function recordBackfill(scope: string, failure: string | null) {
+async function recordBackfill(scope: string, failure: string | null, itemsFound?: number) {
   await markCoverage(scope, failure
     ? { progress: "retry", last_error: failure.slice(0, 500) }
-    : { progress: "analyzing", backfilled_at: new Date().toISOString(), last_error: null });
+    : {
+        progress: "analyzing",
+        backfilled_at: new Date().toISOString(),
+        last_error: null,
+        ...(itemsFound !== undefined && { items_found: itemsFound }),
+      });
 }
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
@@ -216,20 +221,51 @@ async function ingestStates() {
   if (!covered && NEW_AREAS_ONLY) return;
 
   for (const st of states) {
-    const isNew = !!covered && !covered.has(stateScope(st));
+    const scope = stateScope(st);
+    const isNew = !!covered && !covered.has(scope);
     if (NEW_AREAS_ONLY && !isNew) continue;
     if (!process.env.OPENSTATES_API_KEY && isNew) {
-      await recordBackfill(stateScope(st), "Open States API key is missing");
+      await recordBackfill(scope, "Open States API key is missing");
       continue;
     }
-    if (isNew) await markCoverage(stateScope(st), { progress: "fetching", last_error: null });
+    if (isNew) {
+      await markCoverage(scope, {
+        progress: "fetching",
+        items_found: 0,
+        items_analyzed: 0,
+        items_failed: 0,
+        last_error: null,
+      });
+    }
+    let fetchedCount = 0;
     const failure = await runSource(
       `openstates ${st}${isNew ? " (backfill)" : ""}`,
-      () => fetchStateBills(st, isNew ? daysAgo(STATE_BACKFILL_DAYS) : since, isNew ? { maxPages: BACKFILL_PAGES, by: "action" } : {}),
+      async () => {
+        const items = await fetchStateBills(
+          st,
+          isNew ? daysAgo(STATE_BACKFILL_DAYS) : since,
+          isNew
+            ? {
+                maxPages: BACKFILL_PAGES,
+                by: "action",
+                onProgress: async ({ found }) => {
+                  fetchedCount = found;
+                  await markCoverage(scope, {
+                    progress: "fetching",
+                    items_found: found,
+                    last_error: null,
+                  }).catch(() => {});
+                },
+              }
+            : {},
+        );
+        fetchedCount = items.length;
+        return items;
+      },
       "openstates",
     );
     // Without a key nothing was fetched: not a backfill.
-    if (isNew) await recordBackfill(stateScope(st), failure);
+    if (isNew) await recordBackfill(scope, failure, fetchedCount);
   }
 }
 
@@ -239,19 +275,33 @@ async function ingestCities() {
   const covered = await loadCovered(LOCAL_SOURCES.map(citySourceScope));
   if (!covered && NEW_AREAS_ONLY) return;
   for (const src of LOCAL_SOURCES) {
-    const isNew = !!covered && !covered.has(citySourceScope(src));
+    const scope = citySourceScope(src);
+    const isNew = !!covered && !covered.has(scope);
     if (NEW_AREAS_ONLY && !isNew) continue;
-    if (isNew) await markCoverage(citySourceScope(src), { progress: "fetching", last_error: null });
+    if (isNew) {
+      await markCoverage(scope, {
+        progress: "fetching",
+        items_found: 0,
+        items_analyzed: 0,
+        items_failed: 0,
+        last_error: null,
+      });
+    }
     // The on-demand backfill skips the officials step, so a new city's council comes in here.
     if (isNew && !should("officials")) {
       await syncCouncil(src).catch((err) => console.error(`council ${src.client} failed:`, err instanceof Error ? err.message : err));
     }
+    let fetchedCount = 0;
     const failure = await runSource(
       `legistar ${src.client}${isNew ? " (backfill)" : ""}`,
-      () => fetchCityMatters(src, isNew ? daysAgo(CITY_BACKFILL_DAYS) : since),
+      async () => {
+        const items = await fetchCityMatters(src, isNew ? daysAgo(CITY_BACKFILL_DAYS) : since);
+        fetchedCount = items.length;
+        return items;
+      },
       "legistar",
     );
-    if (isNew) await recordBackfill(citySourceScope(src), failure);
+    if (isNew) await recordBackfill(scope, failure, fetchedCount);
   }
 }
 
@@ -292,7 +342,10 @@ async function saveNewFacts(results: { itemId: string; newFacts: Fact[] }[]) {
   }
 }
 
-async function collectBatches(batchIds?: string[]) {
+async function collectBatches(
+  batchIds?: string[],
+  opts?: { pollMs?: number; onBatchDone?: () => Promise<void>; onHeartbeat?: () => Promise<void> },
+) {
   if (!batchIds) {
     const { data: pending, error } = await db
       .from("items")
@@ -303,54 +356,63 @@ async function collectBatches(batchIds?: string[]) {
     batchIds = [...new Set(pending.map((p) => p.analysis_batch_id!))];
   }
 
-  for (const batchId of batchIds) {
-    let outcome = await collectAnalysisBatch(batchId, registry);
-    while (WAIT && outcome.status === "processing") {
-      log(`batch ${batchId} still processing…`);
-      await new Promise((r) => setTimeout(r, 30_000));
-      outcome = await collectAnalysisBatch(batchId, registry);
-    }
-    if (outcome.status === "processing") {
-      log(`batch ${batchId} still processing; will collect next run`);
-      continue;
-    }
-    const ok = outcome.results.filter((r) => r.analysis);
-    const failed = outcome.results.filter((r) => !r.analysis).map((r) => r.itemId);
-    for (const r of outcome.results) {
-      if (!r.usage) continue;
-      const u = (usage[r.model] ??= { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, batch: true });
-      u.input += r.usage.input_tokens;
-      u.output += r.usage.output_tokens;
-      u.cacheRead += r.usage.cache_read_input_tokens ?? 0;
-      u.cacheWrite += r.usage.cache_creation_input_tokens ?? 0;
+  const remaining = new Set(batchIds);
+  while (remaining.size > 0) {
+    let settledAny = false;
+    for (const batchId of [...remaining]) {
+      const outcome = await collectAnalysisBatch(batchId, registry);
+      if (outcome.status === "processing") continue;
+
+      remaining.delete(batchId);
+      settledAny = true;
+      const ok = outcome.results.filter((r) => r.analysis);
+      const failed = outcome.results.filter((r) => !r.analysis).map((r) => r.itemId);
+      for (const r of outcome.results) {
+        if (!r.usage) continue;
+        const u = (usage[r.model] ??= { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, batch: true });
+        u.input += r.usage.input_tokens;
+        u.output += r.usage.output_tokens;
+        u.cacheRead += r.usage.cache_read_input_tokens ?? 0;
+        u.cacheWrite += r.usage.cache_creation_input_tokens ?? 0;
+      }
+
+      // Facts first: impacts reference them.
+      await saveNewFacts(ok);
+      for (const c of chunk(ok, 500)) {
+        const { error: upErr } = await db.from("item_analysis").upsert(
+          c.map((r) => ({
+            item_id: r.itemId,
+            ...r.analysis!,
+            model: r.model,
+            prompt_version: PROMPT_VERSION,
+            created_at: new Date().toISOString(),
+          })),
+          { onConflict: "item_id" },
+        );
+        if (upErr) throw upErr;
+        await updateItems({ analysis_status: "done", analysis_batch_id: null }, c.map((r) => r.itemId));
+      }
+      // Failed items: keep any earlier analysis (e.g. an escalation failed), otherwise mark failed.
+      for (const c of chunk(failed, 100)) {
+        const { data: had } = await db.from("item_analysis").select("item_id").in("item_id", c);
+        const hadSet = new Set((had ?? []).map((h) => h.item_id));
+        const withPrev = c.filter((id) => hadSet.has(id));
+        const without = c.filter((id) => !hadSet.has(id));
+        await updateItems({ analysis_status: "done", analysis_batch_id: null }, withPrev);
+        await updateItems({ analysis_status: "failed", analysis_batch_id: null }, without);
+      }
+      log(`batch ${batchId}: ${ok.length} analyzed, ${failed.length} failed`);
+      await opts?.onBatchDone?.();
     }
 
-    // Facts first: impacts reference them.
-    await saveNewFacts(ok);
-    for (const c of chunk(ok, 500)) {
-      const { error: upErr } = await db.from("item_analysis").upsert(
-        c.map((r) => ({
-          item_id: r.itemId,
-          ...r.analysis!,
-          model: r.model,
-          prompt_version: PROMPT_VERSION,
-          created_at: new Date().toISOString(),
-        })),
-        { onConflict: "item_id" },
-      );
-      if (upErr) throw upErr;
-      await updateItems({ analysis_status: "done", analysis_batch_id: null }, c.map((r) => r.itemId));
+    if (remaining.size === 0) break;
+    if (!WAIT) {
+      for (const batchId of remaining) log(`batch ${batchId} still processing; will collect next run`);
+      break;
     }
-    // Failed items: keep any earlier analysis (e.g. an escalation failed), otherwise mark failed.
-    for (const c of chunk(failed, 100)) {
-      const { data: had } = await db.from("item_analysis").select("item_id").in("item_id", c);
-      const hadSet = new Set((had ?? []).map((h) => h.item_id));
-      const withPrev = c.filter((id) => hadSet.has(id));
-      const without = c.filter((id) => !hadSet.has(id));
-      await updateItems({ analysis_status: "done", analysis_batch_id: null }, withPrev);
-      await updateItems({ analysis_status: "failed", analysis_batch_id: null }, without);
-    }
-    log(`batch ${batchId}: ${ok.length} analyzed, ${failed.length} failed`);
+    if (!settledAny) await opts?.onHeartbeat?.();
+    log(`${remaining.size} ${remaining.size === 1 ? "batch" : "batches"} still processing…`);
+    await new Promise((r) => setTimeout(r, opts?.pollMs ?? 30_000));
   }
 }
 
@@ -505,6 +567,8 @@ async function updateAnalysisProgress(area: Backfill, filters: ReturnType<typeof
   });
 }
 
+const BACKFILL_BATCH_SIZE = 25;
+
 async function analyzeBackfills() {
   if (LIMIT) return;
   const { data: areas, error } = await db.from("ingest_coverage")
@@ -535,13 +599,19 @@ async function analyzeBackfills() {
         .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates)
         .eq("analysis_status", "pending").order("id").limit(500);
       if (error) throw error;
-      await submitBatch(pending, FAST_MODEL, "area analysis");
+      for (const group of chunk(pending, BACKFILL_BATCH_SIZE)) {
+        await submitBatch(group, FAST_MODEL, "area analysis");
+      }
 
       const { data: submitted, error: submittedError } = await db.from("items").select("analysis_batch_id")
         .eq("source", source).eq("jurisdiction_id", jurisdiction).or(dates)
         .eq("analysis_status", "submitted").not("analysis_batch_id", "is", null);
       if (submittedError) throw submittedError;
-      await collectBatches([...new Set(submitted.map((item) => item.analysis_batch_id!))]);
+      await collectBatches([...new Set(submitted.map((item) => item.analysis_batch_id!))], {
+        pollMs: 15_000,
+        onBatchDone: () => updateAnalysisProgress(area, filters),
+        onHeartbeat: () => markCoverage(area.scope, { progress: "analyzing" }).catch(() => {}),
+      });
       await updateAnalysisProgress(area, filters);
       if (!WAIT || (!pending.length && !submitted.length)) break;
     }

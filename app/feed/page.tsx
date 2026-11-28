@@ -1,10 +1,22 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Bookmark, Flame, Loader2 } from "lucide-react";
+import { ArrowRight, Bookmark, CheckCircle2, Clock, Flame, Loader2 } from "lucide-react";
 import { requireUser } from "@/lib/supabase/server";
 import { getAreaProgress, getFeed, getIndexCounts, getMyOfficials, getProfile, getStats, type Place } from "@/lib/data";
-import { areasFor, citySupportFor, formatList, summarizeCoverage } from "@/lib/coverageStatus";
+import {
+  areaPhaseDetail,
+  areaProgressPercent,
+  areasFor,
+  citySupportFor,
+  formatList,
+  isPhaseInProgress,
+  summarizeCoverage,
+  type AreaPhase,
+  type AreaProgressRow,
+  type CitySupport,
+  type CoverageScopeKind,
+} from "@/lib/coverageStatus";
 import { placeName } from "@/lib/place";
 import { ItemCard } from "@/components/ItemCard";
 import { FeedList, type FeedEntry } from "@/components/FeedList";
@@ -50,8 +62,9 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const citySupport = citySupportFor(profile.jurisdiction_ids);
   const coverageSummary = summarizeCoverage(coverage, now);
   const levelEmpty = !actNow.length && !followingUp.length && !radar.length && !done.length;
-  const showCityStatusEmpty = level === "city" && levelEmpty && (!citySupport.supported || coverageSummary.cityPending);
-  const showStateStatusEmpty = level === "state" && levelEmpty && coverageSummary.statePending;
+  const showCityStatusEmpty =
+    level === "city" && levelEmpty && (!profile.zip || !citySupport.supported || coverageSummary.cityPending);
+  const showStateStatusEmpty = level === "state" && levelEmpty && (!profile.zip || coverageSummary.statePending);
 
   const { level: tier } = stats;
   const pct = tier.next
@@ -122,41 +135,66 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
           {showCityStatusEmpty ? (
             <Empty>
-              {citySupport.supported && coverageSummary.cityInProgress ? (
+              {!profile.zip ? (
                 <>
-                  We&apos;re indexing recent {citySupport.name} council items right now. They&apos;ll appear here automatically as
-                  they&apos;re analyzed.
-                </>
-              ) : citySupport.supported && coverageSummary.cityPending ? (
-                <>
-                  Recent {citySupport.name} council items are scheduled for the next indexing run and will appear here once analyzed.
-                </>
-              ) : !citySupport.supported && citySupport.place ? (
-                <>
-                  City council agendas aren&apos;t connected for {citySupport.place} yet. CivicSteps currently indexes city council
-                  items for {formatList(citySupport.supportedCities)} — your {profile.state ?? "state"} bills and federal items
-                  {profile.zip ? ` for ZIP ${profile.zip}` : ""} are still in your feed.
+                  No active ZIP code is set yet. Add a ZIP code from the menu above to see city council items and state bills
+                  for your area.{" "}
+                  <Link className="text-accent underline" href="/feed">
+                    View all levels
+                  </Link>{" "}
+                  or{" "}
+                  <Link className="text-accent underline" href="/browse">
+                    browse all items
+                  </Link>
+                  .
                 </>
               ) : (
                 <>
-                  {profile.zip ? `ZIP ${profile.zip}` : "This ZIP"} isn&apos;t inside a covered city boundary, so city council items
-                  aren&apos;t available here. Your {profile.state ?? "state"} bills and federal items are still in your feed.
+                  {citySupport.supported && coverageSummary.cityInProgress ? (
+                    <>
+                      We&apos;re indexing recent {citySupport.name} council items right now. They&apos;ll appear here
+                      automatically as they&apos;re analyzed.
+                    </>
+                  ) : citySupport.supported && coverageSummary.cityPending ? (
+                    <>
+                      Recent {citySupport.name} council items are scheduled for the next indexing run and will appear here once
+                      analyzed.
+                    </>
+                  ) : !citySupport.supported && citySupport.place ? (
+                    <>
+                      City council agendas aren&apos;t connected for {citySupport.place} yet, so city-level items aren&apos;t
+                      being indexed here (currently {formatList(citySupport.supportedCities)}).{" "}
+                      {coverageSummary.stateInProgress
+                        ? `Your ${profile.state ?? "state"} bills are being indexed now and federal items are already in your feed.`
+                        : `Your ${profile.state ?? "state"} bills and federal items${profile.zip ? ` for ZIP ${profile.zip}` : ""} are still in your feed.`}
+                    </>
+                  ) : (
+                    <>
+                      {profile.zip ? `ZIP ${profile.zip}` : "This ZIP"} isn&apos;t inside a covered city boundary, so city
+                      council items aren&apos;t indexed here.{" "}
+                      {coverageSummary.stateInProgress
+                        ? `Your ${profile.state ?? "state"} bills are being indexed now and federal items are already in your feed.`
+                        : `Your ${profile.state ?? "state"} bills and federal items are still in your feed.`}
+                    </>
+                  )}{" "}
+                  <Link className="text-accent underline" href="/feed">
+                    View all levels
+                  </Link>{" "}
+                  or{" "}
+                  <Link className="text-accent underline" href={citySupport.supported ? "/browse" : "/browse?level=city&scope=all"}>
+                    {citySupport.supported ? "browse all items" : "browse indexed cities"}
+                  </Link>
+                  .
                 </>
-              )}{" "}
-              <Link className="text-accent underline" href="/feed">
-                View all levels
-              </Link>{" "}
-              or{" "}
-              <Link className="text-accent underline" href={citySupport.supported ? "/browse" : "/browse?level=city&scope=all"}>
-                {citySupport.supported ? "browse all items" : "browse indexed cities"}
-              </Link>
-              .
+              )}
             </Empty>
           ) : showStateStatusEmpty ? (
             <Empty>
-              {coverageSummary.stateInProgress
-                ? `We're indexing recent ${profile.state ?? "state"} bills right now. They'll appear here automatically as they're analyzed.`
-                : `Recent ${profile.state ?? "state"} bills are scheduled for the next indexing run and will appear here once analyzed.`}{" "}
+              {!profile.zip
+                ? "No active ZIP code is set yet. Add a ZIP code from the menu above to see state bills for your area."
+                : coverageSummary.stateInProgress
+                  ? `We're indexing recent ${profile.state ?? "state"} bills right now. They'll appear here automatically as they're analyzed.`
+                  : `Recent ${profile.state ?? "state"} bills are scheduled for the next indexing run and will appear here once analyzed.`}{" "}
               <Link className="text-accent underline" href="/feed">
                 View all levels
               </Link>{" "}
@@ -206,6 +244,18 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               </SectionTitle>
               {radar.length ? (
                 <FeedList entries={toEntries(radar)} />
+              ) : level === "city" && !profile.zip ? (
+                <Empty>
+                  No active ZIP code is set yet. Add a ZIP code from the menu above to see city council items for your area.{" "}
+                  <Link className="text-accent underline" href="/feed">
+                    View all levels
+                  </Link>{" "}
+                  or{" "}
+                  <Link className="text-accent underline" href="/browse">
+                    browse all items
+                  </Link>
+                  .
+                </Empty>
               ) : level === "city" && !citySupport.supported ? (
                 <Empty>
                   {citySupport.place
@@ -342,7 +392,13 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
             </Link>
           </Card>
 
-          <Coverage picked={picked} {...counts} />
+          <Coverage
+            picked={picked}
+            {...counts}
+            zip={profile.zip}
+            citySupport={citySupport}
+            rows={coverageSummary.rows}
+          />
         </aside>
       </div>
     </div>
@@ -361,20 +417,91 @@ function sectionHint(base: ReactNode | undefined, shown: number, total: number) 
   );
 }
 
+type CoverageRowSummary = { area: AreaProgressRow; phase: AreaPhase; kind: CoverageScopeKind };
+
+function LevelStatusRow({ label, row, unavailable }: { label: string; row?: CoverageRowSummary; unavailable?: string }) {
+  if (unavailable) {
+    return (
+      <li className="flex items-center justify-between gap-2 text-xs">
+        <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-muted">
+          <Clock className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="shrink-0 text-muted">{unavailable}</span>
+      </li>
+    );
+  }
+  if (!row) {
+    return (
+      <li className="flex items-center justify-between gap-2 text-xs">
+        <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-ink">
+          <CheckCircle2 className="h-3 w-3 shrink-0 text-benefit" aria-hidden />
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="shrink-0 text-muted">Indexed</span>
+      </li>
+    );
+  }
+
+  const inProg = isPhaseInProgress(row.phase);
+  const pct = areaProgressPercent(row.area, row.phase);
+  return (
+    <li className="text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-ink">
+          {inProg ? (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" aria-hidden />
+          ) : row.phase === "ready" ? (
+            <CheckCircle2 className="h-3 w-3 shrink-0 text-benefit" aria-hidden />
+          ) : (
+            <Clock className="h-3 w-3 shrink-0 text-muted" aria-hidden />
+          )}
+          <span className="truncate">{label}</span>
+        </span>
+        <span className={cx("shrink-0 tabular-nums", inProg ? "font-medium text-accent" : "text-muted")}>
+          {inProg ? `${pct}%` : row.phase === "ready" ? "Indexed" : "Scheduled"}
+        </span>
+      </div>
+      {inProg && (
+        <div className="mt-1">
+          <div className="h-1 overflow-hidden rounded-full bg-line">
+            <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted">{areaPhaseDetail(row.area, row.phase)}</p>
+        </div>
+      )}
+    </li>
+  );
+}
+
 /** Compact summary of the index in the sidebar, so a short feed reads as "filtered", not "empty". */
 function Coverage({
   picked,
   indexed,
   inArea,
   inAreaActive,
+  zip,
+  citySupport,
+  rows,
 }: {
   picked: number;
   indexed: number;
   inArea: number;
   inAreaActive: number;
+  zip: string | null;
+  citySupport: CitySupport;
+  rows: CoverageRowSummary[] | null;
 }) {
   const elsewhere = indexed - inArea;
   const stale = inArea - inAreaActive;
+  const cityRow = rows?.find((r) => r.kind === "city");
+  const stateRow = rows?.find((r) => r.kind === "state");
+  const cityLabel = citySupport.supported
+    ? `City (${citySupport.name})`
+    : citySupport.place
+      ? `City (${citySupport.place})`
+      : "City";
+
   return (
     <Card className="text-xs text-muted">
       <Kicker>Index coverage</Kicker>
@@ -391,6 +518,30 @@ function Coverage({
           .
         </p>
       )}
+      <div className="mt-3 border-t border-line/70 pt-2.5">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">By level</p>
+        <ul className="space-y-1.5">
+          <LevelStatusRow
+            label={cityLabel}
+            row={cityRow}
+            unavailable={
+              !zip
+                ? "No ZIP set"
+                : !citySupport.supported
+                  ? citySupport.place
+                    ? "Not connected"
+                    : "Outside city limits"
+                  : undefined
+            }
+          />
+          <LevelStatusRow
+            label={stateRow ? stateRow.area.label : "State bills"}
+            row={stateRow}
+            unavailable={!zip ? "No ZIP set" : undefined}
+          />
+          <LevelStatusRow label="Federal" />
+        </ul>
+      </div>
       <Link
         className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         href="/browse"

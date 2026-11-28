@@ -70,7 +70,15 @@ export function normalizeOpenStatesBill(b: OSBill, state: string): NormalizedIte
 export async function fetchStateBills(
   state: string,
   since: Date,
-  { maxPages = 5, by = "updated" }: { maxPages?: number; by?: "updated" | "action" } = {},
+  {
+    maxPages = 5,
+    by = "updated",
+    onProgress,
+  }: {
+    maxPages?: number;
+    by?: "updated" | "action";
+    onProgress?: (info: { page: number; maxPage: number; found: number }) => Promise<void> | void;
+  } = {},
 ): Promise<NormalizedItem[]> {
   const key = process.env.OPENSTATES_API_KEY;
   if (!key) return [];
@@ -88,6 +96,11 @@ export async function fetchStateBills(
     u.searchParams.append("include", "actions");
     const data = await getJson<{ results: OSBill[]; pagination: { max_page: number } }>(u, { headers: { "X-API-KEY": key } });
     out.push(...data.results.map((b) => normalizeOpenStatesBill(b, state)).filter((i) => isFeedWorthy(i)));
+    await onProgress?.({
+      page,
+      maxPage: Math.min(maxPages, data.pagination.max_page),
+      found: out.length,
+    });
     if (page >= data.pagination.max_page) break;
     await new Promise((r) => setTimeout(r, 6500)); // free tier: ~10 requests/minute
   }

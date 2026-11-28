@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import { getAreaProgress } from "@/lib/data";
-import { areasFor, summarizeCoverage } from "@/lib/coverageStatus";
+import { areasFor, formatProgressSummary, summarizeCoverage } from "@/lib/coverageStatus";
 import { ZipSwitcher } from "@/components/ZipSwitcher";
 import { placeName } from "@/lib/place";
 import { AppNav } from "@/components/AppNav";
@@ -37,13 +37,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const progress = profile?.data?.onboarded_at
     ? await getAreaProgress(supabase, areasFor(profile.data.state, profile.data.jurisdiction_ids))
     : null;
-  const indexing = progress ? summarizeCoverage(progress, Date.now()).inProgress : false;
+  const coverageSummary = progress ? summarizeCoverage(progress, Date.now()) : null;
+  const indexingSummary = formatProgressSummary(coverageSummary?.rows ?? null);
 
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`} suppressHydrationWarning>
       <body className="min-h-screen font-sans antialiased">
         <AppNav signedIn={signedIn}>
-          {profile?.data?.onboarded_at && <ZipSwitcher active={active} saved={saved} indexing={indexing} />}
+          {profile?.data?.onboarded_at && (
+            <ZipSwitcher
+              active={active}
+              saved={saved}
+              indexing={indexingSummary?.inProgress ?? false}
+              indexingSummary={indexingSummary}
+            />
+          )}
         </AppNav>
         <main id="main-content" className="mx-auto max-w-5xl px-4 py-6 sm:py-10">
           {children}

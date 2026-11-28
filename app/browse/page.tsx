@@ -197,7 +197,12 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         </ul>
       ) : (
         <Empty>
-          {scope === "area" && !q && !topic && level === "city" && citySupport.supported && coverageSummary.cityPending ? (
+          {scope === "area" && !q && !topic && !profile.zip && (level === "city" || level === "state") ? (
+            <>
+              No active ZIP code is set yet. Add a ZIP code from the menu above to see{" "}
+              {level === "city" ? "city council items" : "state bills"} for your area.
+            </>
+          ) : scope === "area" && !q && !topic && level === "city" && citySupport.supported && coverageSummary.cityPending ? (
             coverageSummary.cityInProgress ? (
               <>We&apos;re indexing recent {citySupport.name} council items right now — they&apos;ll appear here automatically.</>
             ) : (
@@ -206,8 +211,8 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
           ) : scope === "area" && !q && !topic && level === "city" && !citySupport.supported ? (
             citySupport.place ? (
               <>
-                City council agendas aren&apos;t connected for {citySupport.place} yet (currently{" "}
-                {formatList(citySupport.supportedCities)}).
+                City council agendas aren&apos;t connected for {citySupport.place} yet, so city-level items aren&apos;t being
+                indexed here (currently {formatList(citySupport.supportedCities)}).
               </>
             ) : (
               <>This ZIP code isn&apos;t inside a covered city boundary, so no city council items apply here.</>

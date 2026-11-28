@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fr from "./fixtures/federalregister.json";
 import matters from "./fixtures/legistar-matters.json";
 import records from "./fixtures/legistar-officerecords.json";
@@ -7,7 +7,7 @@ import { normalizeFRDoc } from "@/ingest/federalRegister";
 import { councilMemberFromRecord, normalizeMatter } from "@/ingest/legistar";
 import { congressBillUrl, currentCongress, isActiveBill, normalizeCongressBill } from "@/ingest/congress";
 import { contentHash, interleaveBuckets } from "@/ingest/normalize";
-import { enactedDate, isFeedWorthy, normalizeOpenStatesBill } from "@/ingest/openstates";
+import { enactedDate, fetchStateBills, isFeedWorthy, normalizeOpenStatesBill } from "@/ingest/openstates";
 import { contactsOf, federalOfficialFromLegislator, phoneNumbersOf } from "@/lib/civic/officials";
 import { LOCAL_SOURCES } from "@/ingest/legistar.config";
 
@@ -128,6 +128,39 @@ describe("Open States", () => {
     expect(isFeedWorthy(normalizeOpenStatesBill(vetoed, "ca"), now)).toBe(false);
     expect(isFeedWorthy({ last_action_at: "2026-11-20", enacted_at: null }, now)).toBe(true);
     expect(isFeedWorthy({ last_action_at: "2026-07-01", enacted_at: "2026-07-01" }, now)).toBe(false);
+  });
+
+  it("reports page-level found counts via onProgress", async () => {
+    const prevKey = process.env.OPENSTATES_API_KEY;
+    const recent = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const recentBill = bill(
+      [{ date: recent, description: "Referred to committee", classification: [] }],
+      recent,
+    );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ results: [recentBill], pagination: { max_page: 1 } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    process.env.OPENSTATES_API_KEY = "test-openstates-key";
+    try {
+      const progressCalls: { page: number; maxPage: number; found: number }[] = [];
+      const items = await fetchStateBills("ca", new Date(Date.now() - 7 * 86_400_000), {
+        maxPages: 5,
+        by: "action",
+        onProgress: (info) => {
+          progressCalls.push(info);
+        },
+      });
+      expect(items).toHaveLength(1);
+      expect(progressCalls).toEqual([{ page: 1, maxPage: 1, found: 1 }]);
+    } finally {
+      vi.unstubAllGlobals();
+      if (prevKey === undefined) delete process.env.OPENSTATES_API_KEY;
+      else process.env.OPENSTATES_API_KEY = prevKey;
+    }
   });
 });
 

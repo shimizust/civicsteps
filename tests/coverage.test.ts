@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  INDEX_STAGES,
   areaPhase,
   areaPhaseDetail,
+  areaProgressPercent,
+  areaStageIndex,
   areasFor,
   citySupportFor,
   formatList,
+  formatProgressSummary,
   isPhaseInProgress,
+  overallProgressPercent,
   STALE_PROGRESS_MS,
   summarizeCoverage,
   type AreaProgressRow,
@@ -122,6 +127,7 @@ describe("areaPhaseDetail and formatList", () => {
   it("formats clear phase status text", () => {
     expect(areaPhaseDetail(row(), "queued")).toBe("Starting indexing…");
     expect(areaPhaseDetail(row(), "fetching")).toBe("Fetching recent items…");
+    expect(areaPhaseDetail(row({ items_found: 18 }), "fetching")).toBe("Fetching recent items · 18 found");
     expect(areaPhaseDetail(row(), "retry")).toBe("Scheduled for the next indexing run");
     expect(areaPhaseDetail(row(), "analyzing")).toBe("Preparing items for analysis");
     expect(areaPhaseDetail(row({ items_found: 12, items_analyzed: 5 }), "analyzing")).toBe("Analyzing · 5 of 12 ready");
@@ -218,5 +224,71 @@ describe("summarizeCoverage", () => {
     expect(summary.cityPending).toBe(false);
     expect(summary.stateInProgress).toBe(false);
     expect(summary.statePending).toBe(false);
+  });
+});
+
+describe("stage and percent helpers", () => {
+  it("maps phases to pipeline stage indices", () => {
+    expect(INDEX_STAGES).toEqual(["Queued", "Fetching", "Analyzing", "Ready"]);
+    expect(areaStageIndex("queued")).toBe(0);
+    expect(areaStageIndex("retry")).toBe(0);
+    expect(areaStageIndex("fetching")).toBe(1);
+    expect(areaStageIndex("analyzing")).toBe(2);
+    expect(areaStageIndex("ready")).toBe(3);
+  });
+
+  it("computes incremental area and overall percentages", () => {
+    expect(areaProgressPercent(row(), "retry")).toBe(0);
+    expect(areaProgressPercent(row(), "queued")).toBe(10);
+    expect(areaProgressPercent(row(), "fetching")).toBe(22);
+    expect(areaProgressPercent(row({ items_found: 24 }), "fetching")).toBe(30);
+    expect(areaProgressPercent(row(), "analyzing")).toBe(35);
+    expect(areaProgressPercent(row({ items_found: 10, items_analyzed: 0, items_failed: 0 }), "analyzing")).toBe(35);
+    expect(areaProgressPercent(row({ items_found: 10, items_analyzed: 5, items_failed: 0 }), "analyzing")).toBe(67);
+    expect(areaProgressPercent(row({ items_found: 10, items_analyzed: 8, items_failed: 2 }), "analyzing")).toBe(99);
+    expect(areaProgressPercent(row({ items_found: 10, items_analyzed: 10, items_failed: 0 }), "ready")).toBe(100);
+
+    expect(overallProgressPercent([])).toBe(100);
+    expect(
+      overallProgressPercent([
+        { area: row({ items_found: 10, items_analyzed: 10 }), phase: "ready" },
+        { area: row({ items_found: 10, items_analyzed: 5 }), phase: "analyzing" },
+      ]),
+    ).toBe(84);
+  });
+
+  it("formats compact progress summaries prioritizing active indexing over retry", () => {
+    expect(formatProgressSummary(null)).toBeNull();
+    expect(formatProgressSummary([{ area: row({ progress: "ready" }), phase: "ready" }])).toBeNull();
+
+    const activeOverRetry = formatProgressSummary([
+      { area: row({ scope: "state:CA", label: "CA bills", progress: "retry" }), phase: "retry" },
+      {
+        area: row({
+          scope: "legistar:sunnyvaleca",
+          label: "Sunnyvale council items",
+          progress: "analyzing",
+          items_found: 20,
+          items_analyzed: 10,
+        }),
+        phase: "analyzing",
+      },
+    ]);
+    expect(activeOverRetry).toEqual({
+      label: "Sunnyvale council items",
+      detail: "Analyzing · 10 of 20 ready",
+      percent: 67,
+      inProgress: true,
+    });
+
+    const retryOnly = formatProgressSummary([
+      { area: row({ scope: "state:CA", label: "CA bills", progress: "retry" }), phase: "retry" },
+    ]);
+    expect(retryOnly).toEqual({
+      label: "CA bills",
+      detail: "Scheduled for the next indexing run",
+      percent: 0,
+      inProgress: false,
+    });
   });
 });
