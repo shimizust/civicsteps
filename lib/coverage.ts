@@ -27,13 +27,17 @@ export async function requestAreaCoverage(areas: Area[]): Promise<string[]> {
   const { data: claimed, error: claimError } = await admin.rpc("claim_area_backfill", { p_scopes: missing.map((a) => a.scope) });
   if (claimError) throw claimError;
   const canDispatch = process.env.INGEST_DISPATCH_TOKEN && process.env.INGEST_DISPATCH_REPO;
-  if (canDispatch && claimed) {
-    const dispatched = await dispatchBackfill();
+  if (claimed) {
+    const dispatched = canDispatch ? await dispatchBackfill() : false;
     if (!dispatched) {
       // Leave already-backfilled rows in 'analyzing' so nightly analyzeBackfills() still completes them.
       const { error: retryErr } = await admin
         .from("ingest_coverage")
-        .update({ progress: "retry", progress_at: new Date().toISOString(), last_error: "Backfill dispatch failed" })
+        .update({
+          progress: "retry",
+          progress_at: new Date().toISOString(),
+          last_error: canDispatch ? "Backfill dispatch failed" : "Automatic backfill dispatch is not configured",
+        })
         .in("scope", missing.map((a) => a.scope))
         .is("backfilled_at", null);
       if (retryErr) console.error("backfill retry status update failed", retryErr);

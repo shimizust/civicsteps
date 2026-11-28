@@ -9,5 +9,5 @@ next-env.d.ts
 .DS_Store
 supabase/.branches
 supabase/.temp
-coverage/
+/coverage/
 .vercel

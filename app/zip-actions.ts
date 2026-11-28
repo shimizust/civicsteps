@@ -19,6 +19,16 @@ export type ZipResult =
     }
   | { ok: false; error: string };
 
+export type RemoveZipResult =
+  | {
+      ok: true;
+      removedZip: string;
+      wasActive: boolean;
+      activeZip: string | null;
+      citySupport: CitySupport | null;
+    }
+  | { ok: false; error: string };
+
 export async function saveZip(input: string): Promise<ZipResult> {
   const { supabase, user } = await requireUser();
   if (!user) return { ok: false, error: "Sign in to save or switch ZIP codes." };
@@ -79,4 +89,43 @@ export async function saveZip(input: string): Promise<ZipResult> {
   });
   revalidatePath("/", "layout");
   return { ok: true, zip, summary, officials, stateLookup, coverage, citySupport: citySupportFor(jurisdictionIds) };
+}
+
+export async function removeZip(input: string): Promise<RemoveZipResult> {
+  const { user } = await requireUser();
+  if (!user) return { ok: false, error: "Sign in to manage saved ZIP codes." };
+  const zip = typeof input === "string" ? input.trim().match(/^(\d{5})(?:-\d{4})?$/)?.[1] : undefined;
+  if (!zip) return { ok: false, error: "Enter a 5-digit ZIP code." };
+
+  const { data, error } = await createAdminClient().rpc("remove_zip", {
+    p_user: user.id,
+    p_zip: zip,
+  });
+  if (error) {
+    console.error("ZIP removal failed", error);
+    return { ok: false, error: "Couldn't remove that ZIP code. Try again in a moment." };
+  }
+
+  const row = data?.[0];
+  if (!row?.removed) {
+    return { ok: false, error: "That ZIP code wasn't in your saved locations." };
+  }
+
+  let citySupport: CitySupport | null = null;
+  if (row.was_active && row.next_zip) {
+    const nextJurisdictions = row.next_jurisdiction_ids ?? [];
+    citySupport = citySupportFor(nextJurisdictions);
+    await requestAreaCoverage(areasFor(row.next_state, nextJurisdictions)).catch((err) => {
+      console.error("coverage request failed", err);
+    });
+  }
+
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    removedZip: zip,
+    wasActive: row.was_active,
+    activeZip: row.next_zip,
+    citySupport,
+  };
 }

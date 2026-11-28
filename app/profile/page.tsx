@@ -9,6 +9,7 @@ import { factQuestion, PROFILE_PREFIX } from "@/lib/facts";
 import { DEMOGRAPHIC_QUESTIONS } from "@/lib/taxonomy";
 import { FactQuestion, ForgetAnswer } from "@/components/FactQuestion";
 import { LocalIndexProgress } from "@/components/LocalIndexProgress";
+import { SavedZipsSection } from "@/components/SavedZipsSection";
 import { BadgeIcon } from "@/components/BadgeIcon";
 import { POINTS } from "@/lib/gamification";
 import { Button, Card, Kicker, PageTitle, Pill, SectionTitle, cx } from "@/components/ui";
@@ -26,13 +27,18 @@ const POINT_ROWS = [
 export default async function ProfilePage() {
   const { supabase, user } = await requireUser();
   if (!user) redirect("/login?next=/profile");
-  const [stats, profile, interests, answers, favoriteIds] = await Promise.all([
+  const [stats, profile, interests, answers, favoriteIds, savedZipsRes] = await Promise.all([
     getStats(supabase, user.id),
     getProfile(supabase, user.id),
     getInterests(supabase, user.id),
     getAnswers(supabase, user.id),
     getFavoriteIds(supabase, user.id),
+    supabase.from("saved_zips").select("zip, state, jurisdiction_ids").eq("user_id", user.id).order("zip"),
   ]);
+  const savedLocations = (savedZipsRes.data ?? []).map((location) => ({
+    zip: location.zip,
+    place: placeName(location.jurisdiction_ids, location.state),
+  }));
   const [registry, coverage] = await Promise.all([
     getRegistry(supabase, Object.keys(answers).filter((k) => !k.startsWith(PROFILE_PREFIX))),
     profile?.zip ? getAreaProgress(supabase, areasFor(profile.state, profile.jurisdiction_ids)) : Promise.resolve(null),
@@ -61,6 +67,7 @@ export default async function ProfilePage() {
           citySupport={citySupportFor(profile.jurisdiction_ids)}
           areas={coverage}
           now={Date.now()}
+          showWhenReady
         />
       )}
 
@@ -266,7 +273,11 @@ export default async function ProfilePage() {
         <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
           <div>
             <p className="font-medium">Active ZIP code</p>
-            <p className="text-muted tabular-nums">{profile?.zip ?? "Not set"}</p>
+            <p className="text-muted tabular-nums">
+              {profile?.zip
+                ? `ZIP ${profile.zip}${placeName(profile.jurisdiction_ids, profile.state) ? ` (${placeName(profile.jurisdiction_ids, profile.state)})` : ""}`
+                : "Not set"}
+            </p>
           </div>
           {profile?.onboarded_at ? (
             <p className="text-muted">Use the ZIP menu above to add or switch locations.</p>
@@ -274,6 +285,11 @@ export default async function ProfilePage() {
             <Link className="font-medium text-accent hover:underline" href="/onboarding?step=1">Set ZIP code</Link>
           )}
         </div>
+        {(profile?.onboarded_at || savedLocations.length > 0) && (
+          <div className="pb-3">
+            <SavedZipsSection active={profile?.zip ?? null} saved={savedLocations} />
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-2 py-3">
           <div>
             <p className="font-medium">Email notifications</p>

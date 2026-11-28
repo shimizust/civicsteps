@@ -522,6 +522,11 @@ isOneToOne: false
               "in_area": number,"in_area_active": number,"indexed": number
             }[]
                            },
+"remove_zip":
+{ Args: { "p_user": string,"p_zip": string }; Returns: {
+              "next_jurisdiction_ids": (string)[],"next_state": string | null,"next_zip": string | null,"removed": boolean,"was_active": boolean
+            }[]
+                           },
 "states_to_ingest":
 { Args: Record<PropertyKey, never>; Returns: string[]
                            },
